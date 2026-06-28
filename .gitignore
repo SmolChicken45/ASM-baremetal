@@ -1,6 +1,6 @@
-﻿.claude\*
-.idea\*
-iso_root\assets\*
+﻿.claude/*
+.idea/*
+iso_root/assets/*
 *.iso
-iso_root\main.elf
-objects\*.o
+iso_root/main.elf
+objects/*.o
