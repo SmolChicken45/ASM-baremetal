@@ -2,6 +2,18 @@
 
 global get_audio_device
 
+
+section .bss
+global hda_bus
+global hda_dev
+global hda_func
+global hda_found_flag
+
+hda_bus:        resb 1
+hda_dev:        resb 1
+hda_func:       resb 1
+hda_found_flag  resb 1
+
 section .text
 
 ; ==========================================
@@ -56,6 +68,8 @@ pci_read_dword:
 
 get_audio_device:
 
+    mov byte [hda_found_flag], 0
+
     mov cl, 0
 
 .bus_loop:
@@ -87,15 +101,11 @@ get_audio_device:
     cmp cl, 255
     jne .bus_loop
 
-    mov dx, 0x3F8
-    mov al, 'N'
-    out dx, al
-    jmp .end_pci
-
 .hda_found:
-    mov dx, 0x3F8
-    mov al, 'A'
-    out dx, al
+    mov byte [hda_bus], cl
+    mov byte [hda_dev], dl
+    mov byte [hda_func], r8b
+    mov byte [hda_found_flag], 1
 
 .end_pci:
     ret

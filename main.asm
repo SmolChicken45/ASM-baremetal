@@ -2,6 +2,7 @@
 DEFAULT REL
 
 extern get_audio_device
+extern init_video
 
 
 section .limine_reqs progbits alloc noexec write
@@ -24,10 +25,12 @@ global _start
 
 _start:
 
-
     mov rax, [framebuffer_request + 40]
     test rax, rax
     jz .halt
+
+    call init_video
+    call get_audio_device
 
 
 .game_loop:
