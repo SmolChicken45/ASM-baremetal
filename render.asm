@@ -46,7 +46,7 @@ section .text
 render_frame:
 
 	;clear screen
-    mov eax, 0x00000000
+    mov eax, 0x007F00FF
 	call fb_clear
 	
 	; draw
