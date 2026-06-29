@@ -5,7 +5,8 @@ extern get_audio_device
 extern init_video
 extern render_frame
 extern present_frame
-
+extern update_input
+extern init_idt
 
 section .limine_reqs progbits alloc noexec write
 align 8
@@ -34,8 +35,15 @@ _start:
     call init_video
     call get_audio_device
 
+    call init_idt
+    sti
+
 
 .game_loop:
+
+    call update_input
+
+
     call render_frame
     call present_frame
     jmp .game_loop

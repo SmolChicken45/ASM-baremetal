@@ -1,6 +1,6 @@
 [BITS 64]
 
-%include "input.inc"
+%include "include/input.inc"
 
 global keyboard_handler
 global update_input
