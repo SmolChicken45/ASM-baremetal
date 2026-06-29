@@ -8,6 +8,8 @@ extern present_frame
 extern update_input
 extern init_idt
 
+extern system_ticks
+
 section .limine_reqs progbits alloc noexec write
 align 8
     dq framebuffer_request
@@ -40,13 +42,20 @@ _start:
 
 
 .game_loop:
+    mov r15, [system_ticks]
 
     call update_input
 
 
     call render_frame
     call present_frame
-    jmp .game_loop
+
+.wait_vblank:
+    cmp r15, [system_ticks]
+    jne .game_loop
+
+    hlt
+    jmp .wait_vblank
 
 
 .halt:

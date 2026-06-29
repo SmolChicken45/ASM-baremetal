@@ -8,6 +8,7 @@ Write-Host "1. Assemblage du jeu en ELF64..." -ForegroundColor Cyan
 .\outils\nasm-3.01\nasm.exe -f elf64 render.asm -o ./objects/render.o
 .\outils\nasm-3.01\nasm.exe -f elf64 input_handler.asm -o ./objects/input_handler.o
 .\outils\nasm-3.01\nasm.exe -f elf64 idt.asm -o ./objects/idt.o
+.\outils\nasm-3.01\nasm.exe -f elf64 timer.asm -o ./objects/timer.o
 
 
 
@@ -21,7 +22,7 @@ if ($LASTEXITCODE -ne 0) {
 
 
 Write-Host "2. Edition de liens (Linker)..." -ForegroundColor Cyan
-.\outils\ld.lld.exe -T linker.ld objects/main.o objects/pci.o objects/idt.o objects/input_handler.o objects/video.o objects/hw_limine.o objects/render.o objects/framebuffer.o -o iso_root/main.elf
+.\outils\ld.lld.exe -T linker.ld objects/main.o objects/pci.o objects/timer.o objects/idt.o objects/input_handler.o objects/video.o objects/hw_limine.o objects/render.o objects/framebuffer.o -o iso_root/main.elf
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Erreur lors du Link." -ForegroundColor Red

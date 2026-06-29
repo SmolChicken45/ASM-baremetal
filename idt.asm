@@ -2,6 +2,7 @@
 DEFAULT REL
 
 extern keyboard_handler
+extern timer_handler
 
 global init_idt
 
@@ -89,19 +90,34 @@ init_idt:
     out 0x21, al
     out 0xA1, al
 
-    ; Masquage : Activer UNIQUEMENT le clavier (IRQ1)
-    ; 0xFD = 1111 1101 en binaire (Le bit 1 est à 0, donc le port est ouvert)
-    mov al, 0xFD
+    ; Activer le Timer (IRQ0) ET le Clavier (IRQ1)
+    ; 0xFC = 1111 1100 en binaire (Bits 0 et 1 ouverts)
+    mov al, 0xFC
     out 0x21, al    ; Master (Autorise le clavier)
     mov al, 0xFF
     out 0xA1, al    ; Slave (Bloque tout)
 
     ; --------------------------------------
-    ; ÉTAPE 2 : ENREGISTREMENT DU CLAVIER
+    ; NOUVEAU : CONFIGURATION DU PIT (60 Hz)
+    ; --------------------------------------
+    mov al, 0x36            ; Mode 3 (Onde carrée)
+    out 0x43, al
+    
+    mov ax, 19886           ; Diviseur magique pour 60.001 Hz
+    out 0x40, al            ; Low byte (0xAE)
+    mov al, ah
+    out 0x40, al            ; High byte (0x4D)
+
+    ; --------------------------------------
+    ; ÉTAPE 2 : ENREGISTREMENT DES HANDLERS
     ; --------------------------------------
 
     mov rdi, 0x21    ; 0x20 (base du PIC) + 1 (IRQ1)
     lea rsi, [rel keyboard_handler]
+    call set_idt_entry
+
+    mov rdi, 0x20
+    lea rsi, [rel timer_handler]
     call set_idt_entry
 
     ; --------------------------------------
