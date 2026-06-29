@@ -3,6 +3,8 @@ DEFAULT REL
 
 extern get_audio_device
 extern init_video
+extern render_frame
+extern present_frame
 
 
 section .limine_reqs progbits alloc noexec write
@@ -34,6 +36,8 @@ _start:
 
 
 .game_loop:
+    call render_frame
+    call present_frame
     jmp .game_loop
 
 

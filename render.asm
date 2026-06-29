@@ -46,6 +46,7 @@ section .text
 render_frame:
 
 	;clear screen
+    mov eax, 0x00000000
 	call fb_clear
 	
 	; draw
@@ -56,8 +57,14 @@ render_frame:
 	ret
 	
 render_map:
-	
+	;    TODO: draw room tils here later
+    ret
 	
 render_entities:
+    ; TODO: draw player/ennemies here later
+    ret
 
 render_ui:
+    ; TODO: draw UI here later
+    ret
+    

@@ -1,8 +1,6 @@
 [BITS 64]
 
-%define FB_WIDTH	320
-%define FB_HEIGHT	240
-%define FB_BPP		4
+%include "screen.inc"
 
 global fb_set_pixel
 global fb_clear
