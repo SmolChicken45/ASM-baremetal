@@ -7,12 +7,14 @@ extern render_frame
 extern present_frame
 extern update_input
 extern init_idt
+extern set_present_background
 
 extern system_ticks
 
 section .limine_reqs progbits alloc noexec write
 align 8
     dq framebuffer_request
+    dq module_request
     dq 0
 
 section .data
@@ -22,6 +24,14 @@ framebuffer_request:
     dq 0x0a82e883a194f07b
     dq 0x9d5827dcd881dd75
     dq 0xa3148604f6fab11b
+    dq 0
+    dq 0
+
+module_request:
+    dq 0xc7b1dd30df4c8b88
+    dq 0x0a82e883a194f07b
+    dq 0x3e7e279702be32af
+    dq 0xca1c4f3bd1280cee
     dq 0
     dq 0
 
@@ -40,6 +50,19 @@ _start:
     call init_idt
     sti
 
+    mov rax, [module_request + 40]
+    test rax, rax
+    jz .halt
+
+    mov rcx, [rax + 8]
+    test rcx, rcx
+    jz .halt
+
+    mov rbx, [rax + 16]
+    mov rbx, [rbx]
+    mov rdi, [rbx + 8]
+
+    call set_present_background
 
 .game_loop:
     mov r15, [system_ticks]

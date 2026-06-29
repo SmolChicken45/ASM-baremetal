@@ -5,6 +5,7 @@ global present_frame
 global swap_buffers
 global current_back_buffer
 global current_front_buffer
+global set_present_background
 
 extern SCR_address
 extern SCR_width
@@ -35,6 +36,88 @@ swap_buffers:
 	mov [current_back_buffer], rdx
 	mov [current_front_buffer], rax
 	
+	ret
+
+set_present_background:
+    ; ------------------------------------------------------------
+    ; set_present_background
+    ;
+    ; rdi = pointer vers une image 1920x1080 en 32 bpp
+    ;
+    ; Copie l'image directement dans le framebuffer écran une seule fois.
+    ; L'image n'est pas redessinée à chaque frame.
+    ; ------------------------------------------------------------
+
+    push rbp
+    mov rbp, rsp
+
+    push rbx
+	push r12
+	push r13
+	push r14
+	push r15
+
+    cmp rdi, 0
+    je .done
+
+    mov rsi, [SCR_address]
+    cmp rsi, 0
+    je .done
+
+    mov rax, [SCR_width]
+    cmp rax, 1920
+    jb .done
+    
+    mov rax, [SCR_height]
+    cmp rax, 1080
+    jb .done
+
+    mov rbx, [SCR_pitch]
+    cmp rbx, 0
+    je .done
+
+    ; rdi = source image
+	; rsi = destination framebuffer
+	; rbx = destination pitch en bytes
+
+    xor r12, r12
+
+.row_loop:
+    cmp r12, 1080
+    jae .finished_copy
+
+    ; r13 = source row = image + y * 1920 * 4
+    mov r13, r12
+    imul r13, 1920 * 4
+    add r13, rdi
+
+    ; r14 = destination row = SCR_address + y * SCR_pitch
+    mov r14, r12
+    imul r14, rbx
+    add r14, rsi
+
+    mov rcx, 960
+    mov r15, r13
+
+.copy_row_qwords:
+    mov rax, [r15]
+    mov [r14], rax
+    add r15, 8
+    add r14, 8
+    loop .copy_row_qwords
+
+    inc r12
+    jmp .row_loop
+
+.finished_copy:
+.done:
+    pop r15
+	pop r14
+	pop r13
+	pop r12
+	pop rbx
+
+	pop rbp
 	ret
 	
 present_frame:

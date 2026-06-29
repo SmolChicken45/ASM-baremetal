@@ -4,3 +4,4 @@ iso_root/assets/*
 *.iso
 iso_root/main.elf
 objects/*.o
+/assets

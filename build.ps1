@@ -29,6 +29,14 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+python .\outils\convert.py "assets/images/border_dw_castletown_0.png" "iso_root/assets/border.raw"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Erreur lors de la conversion de l'image. Arrêt de la compilation." -ForegroundColor Red
+    exit 1
+}
+
+
 
 Write-Host "3. Preparation du dossier ISO..." -ForegroundColor Cyan
 Copy-Item -Path "limine.cfg" -Destination "iso_root/limine.cfg" -Force
