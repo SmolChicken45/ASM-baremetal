@@ -15,16 +15,18 @@ SECTIONS
     .text : {
         *(.text .text.*)
     } :text
+    
+    . = ALIGN(4K);
+    .rodata : {
+        *(.rodata .rodata.*)
+    } :rodata
 
     . = ALIGN(4K);
     .limine_reqs : {
         KEEP(*(.limine_reqs))
     } :data
 
-    . = ALIGN(4K);
-    .rodata : {
-        *(.rodata .rodata.*)
-    } :rodata
+
 
     . = ALIGN(4K);
     .data : {
