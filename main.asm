@@ -9,7 +9,7 @@ extern update_input
 extern init_idt
 extern set_present_background
 extern detect_cdrom
-extern read_cdrom_sector
+extern find_file
 
 extern system_ticks
 
@@ -37,8 +37,9 @@ module_request:
     dq 0
     dq 0
 
-section .bss
-sector_buffer: resb 2048
+section .rodata
+
+stats_filename: db "STATS.DAT;1", 0
 
 section .text
 global _start
@@ -53,30 +54,21 @@ _start:
     call init_video
     call get_audio_device
 
-    call init_idt
-    sti
+
 
 	; Détecter le CD Rom
 	call detect_cdrom
     test rax, rax
     jz .halt
 
-	; Lire le secteur 16
-	mov rdi, 16
-	lea rsi, [rel sector_buffer]
-	call read_cdrom_sector
-	test rax, rax
-	jz .halt
+    lea rdi, [rel stats_filename]
+    call find_file
 
-	; Vérifier lire "CD001"
-	lea rsi, [rel sector_buffer]
-	mov al, byte [rsi + 1]
-	cmp al, 'C'
-	jne .halt
-	
-	mov al, byte [rsi + 2]
-	cmp al, 'D'
-	jne .halt
+    test rax, rax
+    jz .halt
+
+    call init_idt
+    sti
 
     mov rax, [module_request + 40]
     test rax, rax
