@@ -8,11 +8,13 @@ global hda_bus
 global hda_dev
 global hda_func
 global hda_found_flag
+global hda_bar0
 
 hda_bus:        resb 1
 hda_dev:        resb 1
 hda_func:       resb 1
-hda_found_flag  resb 1
+hda_found_flag: resb 1
+hda_bar0:       resq 1
 
 section .text
 
@@ -107,5 +109,75 @@ get_audio_device:
     mov byte [hda_func], r8b
     mov byte [hda_found_flag], 1
 
+    ; Activer le Memory Space et le bus Mastering
+    ; Offset 0x04 = Registre de Commande PCI
+    mov r9b, 0x04
+    call pci_read_dword
+    or eax, 0x00000006    ; bit 1 (Memory Space Enable + bit 2 (Bus Master Enable)
+    call pci_write_dword
+
+    ; Lire le BAR0 (Base Address Register 0) pour trouver le MMIO
+    ; Offset 0x10 = BAR0
+    mov r9b, 0x10
+    call pci_read_dword
+
+    ; Nettoyer les 4 dernier bits (ce sont des flags matériel, pas l'addresse)
+    and eax, 0xFFFFFFF0
+    mov dword [hda_bar0], eax
+
+    ; Sur les machines virtuelles modernes, le BAR0 est souvent en 64-bits
+    ; la partie haute de l'adresse est dans le BAR1
+    mov r9b, 0x14
+    call pci_read_dword
+    shl rax, 32
+    mov ebx, dword [hda_bar0]
+    or rax, rbx
+
+    mov qword [hda_bar0], rax
+
 .end_pci:
+    ret
+; ==========================================
+; FONCTION : Écrire 32 bits (DWORD) sur le bus PCI
+; Paramètres : CL = Bus, DL = Device, R8B = Fonction, R9B = Offset
+; EAX = La valeur à écrire
+; ==========================================
+pci_write_dword:
+    push rdx
+    push rcx
+    push r10
+
+    mov r10d, eax    ; Sauvegarde la valeur à écrire
+    
+    ; Construction de l'adresse
+    mov eax, 0x80000000
+    
+    movzx ebx, cl
+    shl ebx, 16
+    or eax, ebx
+    
+    movzx ebx, dl
+    shl ebx, 11
+    or eax, ebx
+
+    movzx ebx, r8b
+    shl ebx, 8
+    or eax, ebx
+    
+    movzx ebx, r9b
+    and ebx, 0xFC
+    or eax, ebx
+
+    mov dx, 0xCF8
+    out dx, eax
+
+    ; Écriture de la valeur
+    mov eax, r10d
+    mov dx, 0xCFC
+    out dx, eax
+
+    pop r10
+    pop rcx
+    pop rdx
+
     ret

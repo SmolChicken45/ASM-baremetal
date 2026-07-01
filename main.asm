@@ -15,7 +15,6 @@ extern memory_init
 extern system_ticks
 
 extern get_framebuffer_response
-extern module_request
 
 
 section .rodata
