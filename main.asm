@@ -13,29 +13,9 @@ extern find_file
 
 extern system_ticks
 
-section .limine_reqs progbits alloc noexec write
-align 8
-    dq framebuffer_request
-    dq module_request
-    dq 0
+extern get_framebuffer_response
+extern module_request
 
-section .data
-align 8
-framebuffer_request:
-    dq 0xc7b1dd30df4c8b88
-    dq 0x0a82e883a194f07b
-    dq 0x9d5827dcd881dd75
-    dq 0xa3148604f6fab11b
-    dq 0
-    dq 0
-
-module_request:
-    dq 0xc7b1dd30df4c8b88
-    dq 0x0a82e883a194f07b
-    dq 0x3e7e279702be32af
-    dq 0xca1c4f3bd1280cee
-    dq 0
-    dq 0
 
 section .rodata
 
@@ -47,13 +27,12 @@ global _start
 _start:
 
    ; Valider la présence de l'écran
-    mov rax, [framebuffer_request + 40]
+    mov rax, [get_framebuffer_response]
     test rax, rax
     jz .halt
 
     call init_video
     call get_audio_device
-
 
 
 	; Détecter le CD Rom
@@ -69,6 +48,8 @@ _start:
 
     call init_idt
     sti
+
+    
 
     mov rax, [module_request + 40]
     test rax, rax

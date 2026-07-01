@@ -1,5 +1,7 @@
 [BITS 64]
 
+extern get_framebuffer_response
+
 section .bss
 global SCR_address
 global SCR_width
@@ -16,7 +18,7 @@ global init_video
 
 init_video:
     
-    ; rax = addresse de la réponse Framebuffer de Limine
+    mov rax, [get_framebuffer_response]    
 
     push rbx
     push rcx

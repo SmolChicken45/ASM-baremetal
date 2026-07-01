@@ -60,7 +60,7 @@ find_file:
     ; Offset 0 : Longueur de cet enregistrement
     movzx rdx, byte [rsi]
     test rdx, rdx
-    jz .error_special
+    jz .error
 
     ; Offset 25 : Flags (Bit 1 = 1 si c'est sous-dossier)
     mov al, byte [rsi + 25]

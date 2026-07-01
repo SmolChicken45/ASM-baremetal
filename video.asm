@@ -2,7 +2,6 @@
 %include "screen.inc"
 
 global present_frame
-global swap_buffers
 global current_back_buffer
 global current_front_buffer
 global set_present_background
