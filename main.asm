@@ -20,7 +20,7 @@ extern module_request
 
 section .rodata
 
-border_filename: db "BORDER.RAW;1", 0
+border_filename: db "ASSETS/BORDER.RAW;1", 0
 
 section .text
 global _start

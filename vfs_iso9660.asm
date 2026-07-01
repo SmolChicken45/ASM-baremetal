@@ -26,6 +26,10 @@ find_file:
     push rdx
     push r8 
     push r9 
+    push r10
+    push r11
+    push r12
+    push r13
     push rsi
     push rdi
 
@@ -47,7 +51,12 @@ find_file:
     lea rsi, [rel sector_buffer]
     mov eax, dword [rsi + 158]
 
-    ; Lire le secteur du Dossier Racine
+    ; =========================================================
+    ; BOUCLE PRINCIPALE : LECTURE D'UN DOSSIER
+    ; RAX = LBA du dossier à lire
+    ; =========================================================
+.read_dir:
+   
     mov rdi, rax
     lea rsi, [rel sector_buffer]
     call read_cdrom_sector
@@ -57,52 +66,81 @@ find_file:
     ; Parcourir les enregistrement
     lea rsi, [rel sector_buffer]
 
+    ; =========================================================
+    ; SOUS-BOUCLE : PARCOURIR LES ENREGISTREMENTS DU DOSSIER
+    ; =========================================================
 .loop_records:
     ; Offset 0 : Longueur de cet enregistrement
     movzx rdx, byte [rsi]
     test rdx, rdx
     jz .error
 
-    ; Offset 25 : Flags (Bit 1 = 1 si c'est sous-dossier)
-    mov al, byte [rsi + 25]
-    test al, 2
-    jnz .next_record    ; dossier on passe pour l'instant
+    ; Calculer la longueur du mot recherché (jusqu'au '/' ou '\0')
+    mov r10, r8
+    xor rcx, rcx
+.calc_len:
+    mov bl, byte [r10 + rcx]    ; BL = caractère actuel
+    test bl, bl
+    jz .len_found        ; Fin de la chaine
+    cmp bl, '/'
+    je .len_found        ; Séparateur de dossier
+    inc rcx
+    jmp .calc_len
+
+.len_found:
+    ; rcx = Longueur du nom cherché
+    ; bl = délimiteur ('/' ou 0)
 
     ; Offset 32 : Longueur du nom du fichier
-    movzx rcx, byte [rsi + 32]
+    movzx r11, byte [rsi + 32]
+    cmp rcx, r11
+    jne .next_record
 
     ; Comparer le nom du fichier
     lea r9, [rsi + 33] ; r9 pointe vers le nom sur le CD
     mov r10, r8        ; r10 pointe vers la chaine cherche en entré
-
-.compare_string:
-    test rcx, rcx
-    jz .check_match_length
+    mov r12, rcx
+.compare_chars:
+    test r12, r12
+    jz .cmp_done
 
     mov al, byte [r9]
-    mov bl, byte [r10]
+    mov r11b, byte [r10]
 
-    cmp al, bl
+    cmp al, r11b
     jne .next_record
 
     inc r9
     inc r10
-    dec rcx
-    jmp .compare_string
+    dec r12
+    jmp .compare_chars
 
-.check_match_length:
-    ; On s'assure que notre chaine d'entrée est bien terminée (byte = 0)
-    ; Pour éviter de confondre "STAT" et "STATS.DAT;1"
-    mov bl, byte [r10]
-    test bl, bl
-    jnz .next_record
+.cmp_done:
+    
+    cmp bl, '/'
+    jne .found_file
+
+.found_dir:
+    ; Vérifier le flag "dossier"
+    mov al, byte [rsi + 25]
+    test al, 2
+    jz .next_record        ; c'est un fichier
 
     ; Offset 2 : LBA du fichier (32 bits little endian)
     mov eax, dword [rsi + 2]
     
     ; Offset 10 : taille du fichier en Octets (32 bits little endian)
-    mov ecx, dword [rsi + 10]
+    lea r8, [r8 + rcx + 1]
 
+    jmp .read_dir
+
+.found_file:
+    mov al, byte [rsi + 25]
+    test al, 2
+    jnz .next_record
+
+    mov eax, dword [rsi + 2]
+    mov ecx, dword [rsi + 10]
     jmp .done
 
 .next_record:
@@ -120,12 +158,14 @@ find_file:
     xor rax, rax
     xor rcx, rcx
 
-
-
 .done:
 
     pop rdi
     pop rsi
+    pop r13
+    pop r12
+    pop r11
+    pop r10
     pop r9
     pop r8
     pop rdx
