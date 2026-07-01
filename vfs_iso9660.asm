@@ -1,9 +1,10 @@
 [BITS 64]
 DEFAULT REL
 
-global find_file
+global load_file
 
 extern read_cdrom_sector
+extern malloc
 
 section .bss
 align 16
@@ -128,6 +129,79 @@ find_file:
     pop r9
     pop r8
     pop rdx
+    pop rbx
+    ret
+
+; ------------------------------------------------------------------
+; load_file
+; Entrée : RDI = Pointeur vers le nom du fichier ("STATS.DAT;1", 0)
+; Sorties :
+;   RAX = Pointeur vers le fichier chargé en RAM (ou 0 si erreur)
+;   RCX = Taille exacte du fichier en octets (ou 0 si erreur)
+; ------------------------------------------------------------------
+load_file:
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+
+    ; trouver le fichier sur le CD
+    call find_file
+    test rax, rax
+    jz .error
+    
+    mov r12, rax    ; r12 = LBA de départ
+    mov r13, rcx    ; r13 = Taille exacte du fichier
+
+    ; Calculer le nombre de secteurs requis : (taille + 2047) / 2048
+    mov rax, r13
+    add rax, 2047
+    mov rcx, 2048
+    xor rdx, rdx
+    div rcx
+    mov r15, rax    ; r15 = Nombre de secteur à lire
+
+    ; Allouer la RAM
+    mov rdi, r15
+    imul rdi, 2048
+    call malloc
+    test rax, rax
+    jz .error
+
+    mov r14, rax        ; r14 = adresse de base de notre buffer
+    mov rbx, rax         ; rbx = curseur d'écriture pour la boucle
+
+.read_loop:
+    test r15, r15
+    jz .done
+
+    mov rdi, r12        ; LBA actuel
+    mov rsi, rbx        ; Destination en RAM actuelle
+
+    call read_cdrom_sector
+    test rax, rax
+    jz .error
+
+    inc r12
+    add rbx, 2048
+    dec r15
+    jmp .read_loop
+
+.error:
+    xor rax, rax
+    xor rcx, rcx
+    jmp .exit
+
+.done:
+    mov rax, r14
+    mov rcx, r13
+
+.exit:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
     pop rbx
     ret
 
