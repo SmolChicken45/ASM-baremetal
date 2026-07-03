@@ -1,7 +1,7 @@
 
 Write-Host "1. Assemblage du jeu en ELF64..." -ForegroundColor Cyan
 $Nasm = ".\outils\nasm-3.01\nasm.exe"
-$ObjectsDir = ".build\objects"
+$ObjectsDir = "build\objects"
 $SourceDir = Resolve-Path ".\src"
 
 if (!(Test-Path $ObjectsDir)) {
@@ -63,7 +63,7 @@ Copy-Item -Path "limine.cfg" -Destination "iso_root/limine.cfg" -Force
 Write-Host "4. Creation de l'image ISO avec Xorriso..." -ForegroundColor Cyan
 .\outils\xorriso.exe -as mkisofs -b limine-cd.bin `
     -no-emul-boot -boot-load-size 4 -boot-info-table `
-    -o MonJeu.iso iso_root
+    -o build/iso/MonJeu.iso iso_root
 
 if ($LASTEXITCODE -ne 0){
     Write-Host "Erreur lors de la création de l'ISO." -ForegroundColor Red
@@ -72,7 +72,7 @@ if ($LASTEXITCODE -ne 0){
 
 
 Write-Host "5. Installation du secteur de démarrage Limine..." -ForegroundColor Cyan
-.\outils\limine-deploy.exe  MonJeu.iso
+.\outils\limine-deploy.exe  build/iso/MonJeu.iso
 
 if ($LASTEXITCODE -ne 0){
     Write-Host "Erreur lors de l'installation du secteur d'amorcage Limine." -ForegroundColor Red
