@@ -1,6 +1,6 @@
 [BITS 64]
 
-%include "screen.inc"
+%include "engine/screen.inc"
 
 global fb_set_pixel
 global fb_clear

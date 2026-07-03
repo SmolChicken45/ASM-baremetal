@@ -2,13 +2,12 @@
 
 global get_framebuffer_response
 global get_memmap_response
-global module_request
-
+global get_kernel_address_response
 
 section .limine_reqs progbits alloc noexec write
 align 8
     dq framebuffer_request
-    dq module_request
+    dq kernel_address_request
     dq memmap_request
     dq 0
 
@@ -23,12 +22,13 @@ framebuffer_request:
 get_framebuffer_response:
     dq 0
 
-module_request:
+kernel_address_request:
     dq 0xc7b1dd30df4c8b88
     dq 0x0a82e883a194f07b
-    dq 0x3e7e279702be32af
-    dq 0xca1c4f3bd1280cee
+    dq 0x71ba76863cc55f63
+    dq 0xb2644a48c516a487
     dq 0
+get_kernel_address_response:
     dq 0
 
 memmap_request:

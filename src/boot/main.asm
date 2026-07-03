@@ -1,7 +1,6 @@
 [BITS 64]
 DEFAULT REL
 
-extern get_audio_device
 extern init_video
 extern render_frame
 extern present_frame
@@ -11,11 +10,12 @@ extern set_present_background
 extern detect_cdrom
 extern load_file
 extern memory_init
+extern init_audio_system
 
 extern system_ticks
 
-extern get_framebuffer_response
-
+extern serial_write_byte
+extern serial_init
 
 section .rodata
 
@@ -26,17 +26,25 @@ global _start
 
 _start:
 
-   ; Valider la présence de l'écran
-    mov rax, [get_framebuffer_response]
-    test rax, rax
-    jz .halt
+    call serial_init
+
+    mov al, 0x53
+    call serial_write_byte
+
+    mov al, 0x43
+    call serial_write_byte
+    
+    mov al, 0x34
+    call serial_write_byte
+
+    mov al, 0x35
+    call serial_write_byte
+
 
     call init_video
-    call get_audio_device
+    call init_audio_system
     call memory_init
 
-    test rax,rax
-    jz .halt
 
 	; Détecter le CD Rom
 	call detect_cdrom

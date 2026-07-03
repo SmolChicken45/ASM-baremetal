@@ -3,14 +3,7 @@
 global get_sin
 global get_cos
 
-section .rodata
-align 16
-
-sin_table:
-	dd 0
-	dd 25
-	dd 50
-	dd 75
+%include "common/sin_table.inc"
 	
 
 section .text
@@ -20,5 +13,5 @@ get_sin:
 get_cos:
 	add rdi, 0x40
 	and rdi, 0xFF
-	mov eax, [sin_table + rdi*]
+	mov eax, [sin_table + rdi * 4]
 	ret

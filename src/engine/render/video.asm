@@ -1,5 +1,5 @@
 [BITS 64]
-%include "screen.inc"
+%include "engine/screen.inc"
 
 global present_frame
 global current_back_buffer

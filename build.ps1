@@ -1,30 +1,46 @@
 
 Write-Host "1. Assemblage du jeu en ELF64..." -ForegroundColor Cyan
-.\outils\nasm-3.01\nasm.exe -f elf64 main.asm -o ./objects/main.o
-.\outils\nasm-3.01\nasm.exe -f elf64 pci.asm -o ./objects/pci.o
-.\outils\nasm-3.01\nasm.exe -f elf64 hw_limine.asm -o ./objects/hw_limine.o
-.\outils\nasm-3.01\nasm.exe -f elf64 -i include/ video.asm -o ./objects/video.o
-.\outils\nasm-3.01\nasm.exe -f elf64 -i include/ framebuffer.asm -o ./objects/framebuffer.o
-.\outils\nasm-3.01\nasm.exe -f elf64 render.asm -o ./objects/render.o
-.\outils\nasm-3.01\nasm.exe -f elf64 input_handler.asm -o ./objects/input_handler.o
-.\outils\nasm-3.01\nasm.exe -f elf64 idt.asm -o ./objects/idt.o
-.\outils\nasm-3.01\nasm.exe -f elf64 timer.asm -o ./objects/timer.o
-.\outils\nasm-3.01\nasm.exe -f elf64 atapi.asm -o ./objects/atapi.o
-.\outils\nasm-3.01\nasm.exe -f elf64 vfs_iso9660.asm -o ./objects/vfs_iso9660.o
-.\outils\nasm-3.01\nasm.exe -f elf64 limine_reqs.asm -o ./objects/limine_reqs.o
-.\outils\nasm-3.01\nasm.exe -f elf64 memory.asm -o ./objects/memory.o
+$Nasm = ".\outils\nasm-3.01\nasm.exe"
+$ObjectsDir = ".build\objects"
+$SourceDir = Resolve-Path ".\src"
+
+if (!(Test-Path $ObjectsDir)) {
+    New-Item -ItemType Directory -Path $ObjectsDir | Out-Null
+}
+
+Remove-Item "$ObjectsDir\*.o" -Force -ErrorAction SilentlyContinue
+
+$ObjectFiles = @()
+
+$AsmFiles = Get-ChildItem -Path $SourceDir -Recurse -Filter "*.asm"
 
 
+foreach ($AsmFile in $AsmFiles){
+    $RelativePath = $AsmFile.FullName.Substring((Resolve-Path $SourceDir).Path.Length + 1)
+    $ObjectName = $RelativePath -replace "\\", "_"
+    $ObjectName = $ObjectName -replace "\.asm$", ".o"
+    $ObjectPath = Join-Path $ObjectsDir $ObjectName
+    
+    Write-Host "NASM $RelativePath -> $ObjectPath"
+    
+    & $Nasm -f elf64 -i "include/" $AsmFile.Fullname -o $ObjectPath
 
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Erreur de compilation NASM." -ForegroundColor Red
-    exit 1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Erreur de compilation NASM." -ForegroundColor Red
+        exit 1
+    }
+    
+    $ObjectFiles += $ObjectPath
 }
 
 
+Write-Host "Objets generes :" -ForegroundColor DarkCyan
+foreach ($ObjectFile in $ObjectFiles) {
+    Write-Host "  $ObjectFile"
+}
+
 Write-Host "2. Edition de liens (Linker)..." -ForegroundColor Cyan
-.\outils\ld.lld.exe -T linker.ld objects/main.o objects/limine_reqs.o objects/memory.o objects/pci.o objects/vfs_iso9660.o objects/timer.o objects/atapi.o objects/idt.o objects/input_handler.o objects/video.o objects/hw_limine.o objects/render.o objects/framebuffer.o -o iso_root/main.elf
+.\outils\ld.lld.exe -T linker.ld $ObjectFiles -o iso_root/main.elf
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Erreur lors du Link." -ForegroundColor Red

@@ -30,6 +30,7 @@ section .text
 ; ==========================================
 
 pci_read_dword:
+    push rbx
     push rdx
     push rcx
 
@@ -66,9 +67,11 @@ pci_read_dword:
 
     pop rcx
     pop rdx
+    pop rbx
     ret
 
 get_audio_device:
+
 
     mov byte [hda_found_flag], 0
 
@@ -88,11 +91,13 @@ get_audio_device:
     mov r9b, 0x08
     call pci_read_dword
 
+
     ; EAX contient maintenant : [Classe] [Sous-Classe] [ProgIF] [Revision]
     shr eax, 16    ; On décale pour avoir la Classe et la Sous-Classe dans AX
 
     cmp ax, 0x0403    ; 0x04 = Multimédia, 0x03 = HDA
     je .hda_found
+
 
 .next_device:
     inc dl
@@ -103,7 +108,10 @@ get_audio_device:
     cmp cl, 255
     jne .bus_loop
 
+    ret
+
 .hda_found:
+    
     mov byte [hda_bus], cl
     mov byte [hda_dev], dl
     mov byte [hda_func], r8b
@@ -121,21 +129,28 @@ get_audio_device:
     mov r9b, 0x10
     call pci_read_dword
 
+    mov r10d, eax
+
     ; Nettoyer les 4 dernier bits (ce sont des flags matériel, pas l'addresse)
     and eax, 0xFFFFFFF0
     mov dword [hda_bar0], eax
+    mov dword [hda_bar0 + 4], 0
 
-    ; Sur les machines virtuelles modernes, le BAR0 est souvent en 64-bits
-    ; la partie haute de l'adresse est dans le BAR1
+    ; Vérification 64 bit ou 32 bit
+    mov eax, r10d
+    and eax, 0x06    ;    masque pour isoler les bits 1 et 2
+    cmp eax, 0x04    ; 0x04 signifie BAR 64 Bits
+    jne .end_pci    ; si c'est autre chose, c'est 32 bits
+
+    ; BAR 64 Bits
+    ; Lire la partie haute dans le BAR1
     mov r9b, 0x14
     call pci_read_dword
-    shl rax, 32
-    mov ebx, dword [hda_bar0]
-    or rax, rbx
 
-    mov qword [hda_bar0], rax
+    mov dword [hda_bar0 + 4], eax
 
 .end_pci:
+    
     ret
 ; ==========================================
 ; FONCTION : Écrire 32 bits (DWORD) sur le bus PCI
@@ -143,6 +158,7 @@ get_audio_device:
 ; EAX = La valeur à écrire
 ; ==========================================
 pci_write_dword:
+    push rbx
     push rdx
     push rcx
     push r10
@@ -179,5 +195,6 @@ pci_write_dword:
     pop r10
     pop rcx
     pop rdx
+    pop rbx
 
     ret
