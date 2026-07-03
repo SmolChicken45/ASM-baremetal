@@ -1,7 +1,6 @@
 ﻿.claude/*
 .idea/*
-iso_root/assets/*
-*.iso
+build/*
+iso_root/ASSETS/*
 iso_root/main.elf
-objects/*.o
 /assets
