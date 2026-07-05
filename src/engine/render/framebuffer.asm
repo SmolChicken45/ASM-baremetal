@@ -1,4 +1,5 @@
 [BITS 64]
+DEFAULT REL
 
 %include "engine/screen.inc"
 
@@ -148,6 +149,7 @@ fb_draw_sprite:
 	; rdx = sprite pointer (pixels 32-bit)
 	; rcx = width
 	; r8  = heights
+    ; r9 = sheet pitch
 
 	
 	push rbx
@@ -155,11 +157,13 @@ fb_draw_sprite:
 	push r13
 	push r14
 	push r15
+    push rbp
 	
 	mov r12, rdi
 	mov r13, rsi
 	mov r14, rdx
 	mov r15, rcx
+    mov rbp, r9
 	
 	mov rdx, [current_back_buffer]
 	xor r9, r9
@@ -173,6 +177,9 @@ fb_draw_sprite:
 	
 	cmp r10, 0
 	jl .next_row
+
+    cmp r10, FB_HEIGHT
+    jge .done
 	
 	xor r11, r11
 	
@@ -190,21 +197,21 @@ fb_draw_sprite:
 	jge .skip_pixel
 	
 	mov rbx, r9
-	imul rbx, r15
+	imul rbx, rbp
 	add rbx, r11
 	shl rbx, 2
 	
-	mov eax, [r14 + rbx]
+	mov ecx, [r14 + rbx]
 	
-	test eax, eax
+	test ecx, ecx
 	jz .skip_pixel
 	
 	mov rbx, r10
 	imul rbx, FB_WIDTH
-	add rbx, r11
+	add rbx, rax
 	shl rbx, 2
 	
-	mov dword [rdx + rbx], eax
+	mov dword [rdx + rbx], ecx
 	
 .skip_pixel:
 	inc r11
@@ -215,6 +222,7 @@ fb_draw_sprite:
 	jmp .y_loop
 	
 .done:
+    pop rbp
 	pop r15
 	pop r14
 	pop r13

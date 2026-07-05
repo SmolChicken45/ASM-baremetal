@@ -17,9 +17,12 @@ extern system_ticks
 extern serial_write_byte
 extern serial_init
 
+extern player_data
+
 section .rodata
 
 border_filename: db "ASSETS/BORDER.RAW;1", 0
+kris_walk_filename: db "ASSETS/KRISWALK.RAW;1", 0
 
 section .text
 global _start
@@ -59,6 +62,10 @@ _start:
     call load_file
     mov rdi, rax
     call set_present_background
+
+    lea rdi, [rel kris_walk_filename]
+    call load_file
+    mov [player_data + 16], rax
 
 .game_loop:
     mov r15, [system_ticks]
