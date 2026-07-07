@@ -18,6 +18,7 @@ extern serial_write_byte
 extern serial_init
 
 extern player_data
+extern update_player_logic
 
 section .rodata
 
@@ -71,6 +72,7 @@ _start:
     mov r15, [system_ticks]
 
     call update_input
+    call update_player_logic
 
 
     call render_frame
