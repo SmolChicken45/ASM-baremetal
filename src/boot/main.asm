@@ -18,12 +18,16 @@ extern serial_write_byte
 extern serial_init
 
 extern player_data
+extern tileset_ptr
+extern current_map_ptr
 extern update_player_logic
 
 section .rodata
 
 border_filename: db "ASSETS/BORDER.RAW;1", 0
 kris_walk_filename: db "ASSETS/KRISWALK.RAW;1", 0
+kris_bedroom_tile_filename: db "ASSETS/KRIS_BED.RAW;1", 0
+kris_bedroom_id_filename: db "ASSETS/KRIS_BED.BIN;1", 0
 
 section .text
 global _start
@@ -62,11 +66,19 @@ _start:
     lea rdi, [rel border_filename]
     call load_file
     mov rdi, rax
-    call set_present_background
+    ; call set_present_background
 
     lea rdi, [rel kris_walk_filename]
     call load_file
     mov [player_data + 16], rax
+
+	lea rdi, [rel kris_bedroom_tile_filename]
+	call load_file
+	mov [tileset_ptr], rax
+
+	lea rdi, [rel kris_bedroom_id_filename]
+	call load_file
+	mov [current_map_ptr], rax
 
 .game_loop:
     mov r15, [system_ticks]

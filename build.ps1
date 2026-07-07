@@ -49,6 +49,8 @@ if ($LASTEXITCODE -ne 0) {
 
 python .\outils\convert.py "assets/images/border_dw_castletown_0.png" "iso_root/ASSETS/BORDER.RAW"
 python .\outils\convert.py "assets/images/sprite_sheet/kris_walk.png" "iso_root/ASSETS/KRISWALK.RAW"
+python .\outils\convert.py "assets/images/sprite_sheet/kris_bedroom.png" "iso_root/ASSETS/KRIS_BED.RAW"
+Copy-Item -Path "assets/images/sprite_sheet/kris_bedroom.bin" -Destination "iso_root/ASSETS/KRIS_BED.BIN"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Erreur lors de la conversion de l'image. Arrêt de la compilation." -ForegroundColor Red

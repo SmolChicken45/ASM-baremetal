@@ -7,7 +7,7 @@ extern InputState
 extern player_data
 
 ; Vitesse en virgule fixe : 1,5 pixels * 256 = 384
-SPEED equ 784
+SPEED equ 1176
 
 section .data
 
