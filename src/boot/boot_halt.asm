@@ -1,9 +1,9 @@
 [BITS 64]
 DEFAULT REL
 
-global boot_halt
 
 section .text
+global boot_halt
 
 ; Fonction qui sert à débugger pour voir quel chemin le code prend
 boot_halt:

@@ -1,17 +1,15 @@
 [BITS 64]
 DEFAULT REL
 
-extern render_frame
-extern present_frame
-extern update_input
 extern set_present_background
 extern load_file
-
 
 extern system_ticks
 
 extern boot_init
 extern boot_halt
+
+extern game_loop
 
 extern player_data
 extern tileset_ptr
@@ -61,22 +59,9 @@ _start:
     lea rdi, [rel kris_bedroom_furniture_filename]
     call load_file
     mov [layout_ptr], rax
-.game_loop:
-    mov r15, [system_ticks]
 
-    call update_input
-    call update_player_logic
+    jmp game_loop
 
-
-    call render_frame
-    call present_frame
-
-.wait_vblank:
-    cmp r15, [system_ticks]
-    jne .game_loop
-
-    hlt
-    jmp .wait_vblank
 
 
 .halt:

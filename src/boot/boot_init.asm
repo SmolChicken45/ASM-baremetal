@@ -8,10 +8,10 @@ extern memory_init
 extern detect_cdrom
 extern init_idt
 
-
-global boot_init
+extern serial_write_byte
 
 section .text
+global boot_init
 
 boot_init:
 
