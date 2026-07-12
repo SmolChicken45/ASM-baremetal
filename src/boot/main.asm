@@ -1,21 +1,17 @@
 [BITS 64]
 DEFAULT REL
 
-extern init_video
 extern render_frame
 extern present_frame
 extern update_input
-extern init_idt
 extern set_present_background
-extern detect_cdrom
 extern load_file
-extern memory_init
-extern init_audio_system
+
 
 extern system_ticks
 
-extern serial_write_byte
-extern serial_init
+extern boot_init
+extern boot_halt
 
 extern player_data
 extern tileset_ptr
@@ -36,33 +32,13 @@ global _start
 
 _start:
 
-    call serial_init
-
-    mov al, 0x53
-    call serial_write_byte
-
-    mov al, 0x43
-    call serial_write_byte
-    
-    mov al, 0x34
-    call serial_write_byte
-
-    mov al, 0x35
-    call serial_write_byte
-
-
-    call init_video
-    call init_audio_system
-    call memory_init
-
-
-	; Détecter le CD Rom
-	call detect_cdrom
+    call boot_init
     test rax, rax
     jz .halt
 
-    call init_idt
-    sti
+
+
+
 
 
     lea rdi, [rel border_filename]
@@ -104,5 +80,4 @@ _start:
 
 
 .halt:
-    hlt
-    jmp .halt
+    call boot_halt
