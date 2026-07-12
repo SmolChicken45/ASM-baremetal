@@ -21,6 +21,7 @@ extern player_data
 extern tileset_ptr
 extern current_map_ptr
 extern update_player_logic
+extern layout_ptr
 
 section .rodata
 
@@ -28,6 +29,7 @@ border_filename: db "ASSETS/BORDER.RAW;1", 0
 kris_walk_filename: db "ASSETS/KRISWALK.RAW;1", 0
 kris_bedroom_tile_filename: db "ASSETS/KRIS_BED.RAW;1", 0
 kris_bedroom_id_filename: db "ASSETS/KRIS_BED.BIN;1", 0
+kris_bedroom_furniture_filename: db "ASSETS/KRIS_FUR.RAW;1", 0
 
 section .text
 global _start
@@ -80,6 +82,9 @@ _start:
 	call load_file
 	mov [current_map_ptr], rax
 
+    lea rdi, [rel kris_bedroom_furniture_filename]
+    call load_file
+    mov [layout_ptr], rax
 .game_loop:
     mov r15, [system_ticks]
 

@@ -1,6 +1,9 @@
 [BITS 64]
 DEFAULT REL
 
+%include "assets/atlases/kris_bedroom_atlas.inc"
+%include "assets/layouts/kris_bedroom_layout.inc"
+
 global render_overworld_map
 global render_overworld_entities
 global render_overworld_ui
@@ -11,9 +14,12 @@ extern fb_draw_sprite
 
 extern current_map_ptr
 extern tileset_ptr
+extern layout_ptr
 extern map_width
 extern map_height
 extern fb_draw_tile
+
+extern draw_layout
 
 
 extern serial_write_qword
@@ -22,6 +28,22 @@ extern serial_write_qword
 section .text
 
 render_overworld_map:
+
+    call render_background
+    
+    ; rdi = atlas
+    ; rsi = layout
+    ; rdx = spritesheet pixels
+    ; rcx = spritesheet pitch
+    lea rdi, [kris_bedroom_atlas]
+    lea rsi, [kris_bedroom_layout]
+    mov rdx, qword [rel layout_ptr]
+    mov rcx, 128
+    call draw_layout
+
+    ret
+
+render_background:
 
 	push r12
 	push r13

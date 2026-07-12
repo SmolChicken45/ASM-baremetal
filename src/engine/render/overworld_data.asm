@@ -6,6 +6,7 @@ global current_map_ptr
 global tileset_ptr
 global map_width
 global map_height
+global layout_ptr
 
 section .data
 align 8
@@ -23,5 +24,6 @@ align 8
 ; Métadonnées de la salle actuelle
 current_map_ptr:	dq 0		; pointeur vers les données de room_1.bin
 tileset_ptr:		dq 0		; pointeur vers tileset.raw
+layout_ptr:         dq 0
 map_width:			dq 16		; Largeur de la carte en tuiles 320px / 20 px
 map_height:			dq 12		; Hauteur de la carte en tuiles 240px / 20 px

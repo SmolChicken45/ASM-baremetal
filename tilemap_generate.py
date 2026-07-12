@@ -46,8 +46,8 @@ def extraire_tiles(chemin_entree, chemin_tileset, chemin_map_bin, taille_bloc=20
     print(f"Map binaire générée : {chemin_map_bin} ({len(donnees_map)} octets)")
     
 if __name__ == "__main__":
-    image_source = "assets/images/aseprite/kris_bedroom.png"
-    fichier_tileset = "assets/images/sprite_sheet/kris_bedroom.png"
-    fichier_map_bin = "assets/images/sprite_sheet/kris_bedroom.bin"
+    image_source = "assets/images/aseprite/home_main.png"
+    fichier_tileset = "assets/images/sprite_sheet/home_main.png"
+    fichier_map_bin = "assets/images/sprite_sheet/home_main.bin"
     
     extraire_tiles(image_source, fichier_tileset, fichier_map_bin)
