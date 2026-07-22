@@ -65,8 +65,11 @@ Copy-Item -Path "limine.cfg" -Destination "iso_root/limine.cfg" -Force
 
 
 Write-Host "4. Creation de l'image ISO avec Xorriso..." -ForegroundColor Cyan
-.\outils\xorriso.exe -as mkisofs -b limine-cd.bin `
+.\outils\xorriso.exe -as mkisofs `
+    -b limine-cd.bin `
     -no-emul-boot -boot-load-size 4 -boot-info-table `
+    --efi-boot limine-cd-efi.bin `
+    -efi-boot-part --efi-boot-image --protective-msdos-label `
     -o build/iso/MonJeu.iso iso_root
 
 if ($LASTEXITCODE -ne 0){
