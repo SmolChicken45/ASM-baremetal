@@ -1,18 +1,26 @@
 [BITS 64]
 
+global limine_base_revision
 global get_framebuffer_response
 global get_memmap_response
 global get_kernel_address_response
 
-section .limine_reqs progbits alloc noexec write
+section .rodata
 align 8
-    dq framebuffer_request
-    dq kernel_address_request
-    dq memmap_request
-    dq 0
+limine_base_revision:
+    dq 0xf9562b2d5c95a6c8
+    dq 0x6a7b384944536bdc
+    dq 3 ; Révision 3
 
-section .data
+section .limine_requests progbits alloc noexec write
 align 8
+
+limine_requests_start_marker:
+    dq 0xf6b8f4b39de7d1ae
+    dq 0xfab91a6940fcb9cf
+    dq 0x785c6ed015d3e316
+    dq 0x181e920a7852b9d9
+
 framebuffer_request:
     dq 0xc7b1dd30df4c8b88
     dq 0x0a82e883a194f07b
@@ -39,3 +47,7 @@ memmap_request:
 	dq 0
 get_memmap_response:
 	dq 0
+
+limine_requests_end_marker:
+    dq 0xadc0e0531bb10d03
+    dq 0x9572709f31764c62

@@ -22,8 +22,8 @@ SECTIONS
     } :rodata
 
     . = ALIGN(4K);
-    .limine_reqs : {
-        KEEP(*(.limine_reqs))
+    .limine_requests : {
+        KEEP(*(.limine_requests))
     } :data
 
 

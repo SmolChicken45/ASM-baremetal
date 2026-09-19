@@ -17,11 +17,15 @@ boot_init:
 
     ; Permet d'avoir le port série en débuggage bas niveau
     call serial_init
+
     ; La mémoire pour les autres systèmes
     call memory_init
 
+
     ; Vidéo/Audio 
     call init_video
+
+
     call init_audio_system
 
     ; Les Assets

@@ -17,11 +17,14 @@ section .text
 global init_video
 
 init_video:
-    
-    mov rax, [get_framebuffer_response]    
+
 
     push rbx
     push rcx
+
+    mov rax, [get_framebuffer_response]    
+    test rax, rax
+    jz .error
 
     ; prendre le premier écran
     mov rcx, [rax + 16]    ; réponse: écrans
@@ -38,6 +41,14 @@ init_video:
 
     mov rax, [rbx + 24]    ; pitch
     mov [SCR_pitch], rax
+
+    mov rax, 1
+    jmp .end
+
+.error:
+    xor rax, rax
+
+.end:
 
     pop rcx
     pop rbx

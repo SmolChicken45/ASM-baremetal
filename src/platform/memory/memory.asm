@@ -29,6 +29,7 @@ memory_init:
     test rax, rax
     jz .error
 
+
     ; La structure de réponse :
     ; [rax + 0] = Révision
     ; [rax + 8] = Nombre d'entrées
@@ -46,6 +47,7 @@ memory_init:
     mov rdi, [rsi]
 
     mov rdx, [rdi + 16]
+
     cmp rdx, LIMINE_MEMMAP_USABLE   
     jne .next_entry
 
@@ -82,6 +84,8 @@ memory_init:
     pop rdx
     pop rcx
     pop rbx
+
+
     ret
 
 malloc:
