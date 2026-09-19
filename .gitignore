@@ -4,3 +4,6 @@ build/*
 iso_root/ASSETS/*
 iso_root/main.elf
 /assets
+outils/limine
+outils/linux/bin
+outils/linux/lib
