@@ -20,17 +20,14 @@ Les architectures supporté présentement est seulement le x86-64
 
 il est planifié pour être supporté sur MIPS III (la nintendo 64)
 
-## Roadmap
-Aucun
-
-## Contributing
+## Contribution
 À venir
 
-## Authors and acknowledgment
+## Auteur
 SmolChicken45
 
 le code source est totalement originel
-## License
+## Licence
 MIT License
 
 Copyright (c) 2026 SmolChicken45
@@ -75,5 +72,5 @@ DANS LE CADRE D'UN CONTRAT, D'UN DÉLIT OU AUTRE, DÉCOULANT DE, EN RELATION
 AVEC LE LOGICIEL OU L'UTILISATION OU AUTRES MANIPULATIONS DU LOGICIEL.
 
 
-## Project status
+## Status du projet
 En cours, implémentation des pilotes USB dans le cadre dans un cours

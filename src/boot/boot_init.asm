@@ -7,6 +7,7 @@ extern init_audio_system
 extern memory_init
 extern detect_cdrom
 extern init_idt
+extern get_xhci_device
 
 extern serial_write_byte
 
@@ -17,16 +18,14 @@ boot_init:
 
     ; Permet d'avoir le port série en débuggage bas niveau
     call serial_init
-
     ; La mémoire pour les autres systèmes
     call memory_init
-
-
     ; Vidéo/Audio 
     call init_video
-
-
     call init_audio_system
+
+    ; USB
+    call get_xhci_device
 
     ; Les Assets
 	call detect_cdrom
@@ -46,6 +45,10 @@ boot_init:
     mov al, 0x34
     call serial_write_byte
     mov al, 0x35
+    call serial_write_byte
+    mov al, 0x0D
+    call serial_write_byte
+    mov al, 0x0A
     call serial_write_byte
 
 
