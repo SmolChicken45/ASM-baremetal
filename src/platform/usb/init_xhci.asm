@@ -6,6 +6,12 @@ DEFAULT REL
 global init_xhci
 
 extern xhci_bar0
+extern get_kernel_address_response
+
+section .bss
+align 64
+
+xhci_dcbaa: resq 256
 
 section .rodata
     msg_reset_xhci_start:     db "[xHCI] Début du reset du xHCI ", 13, 10
@@ -16,6 +22,12 @@ section .rodata
 
     msg_reset_done:           db "[xHCI] Reset effectué, le xHCI est prêt à être configuré", 13, 10
     msg_reset_done_len        equ $ - msg_reset_done
+
+    msg_val_config:           db "[xHCI] Read-back CONFIG (MaxSlots) : "
+    msg_val_config_len        equ $ - msg_val_config
+
+    msg_val_dcbaap:           db "[xHCI] Read-back DCBAAP (Phys Addr): "
+    msg_val_dcbaap_len        equ $ - msg_val_dcbaap
 
 section .text
 
@@ -37,7 +49,35 @@ init_xhci:
 
     call reset_xhci
 
+    ; Configurer le registre CONFIG (MaxSlotsEn)
+    ; Lire HCSPARAMS1
+    mov eax, dword [r12 + 0x04]
+    and eax, 0xFF   ; masquer pour garder les bits 7:0
 
+    ; Écrire cette valeur dans le registre CONFIG (offse 0x38 de Operationnal Base)
+    mov dword [rbx +0x38], eax
+
+    ; Configurer le pointeur DCBAAP
+    ; DCBAAP est un registre 64 bits à offset 0x30 de Operational Base
+    ; Adresse Physique
+    lea rax, [rel xhci_dcbaa]
+    mov rdi, [rel get_kernel_address_response]
+
+    ;  adresse virtuel - base virtuel + base physique = adresse physique
+    mov rcx, qword [rdi + 0x10]
+    sub rax, rcx
+    mov rdx, qword [rdi + 0x08]
+    add rax, rdx
+
+    mov qword [rbx + 0x30], rax
+
+    PRINT_SERIAL msg_val_config, msg_val_config_len
+    mov eax, dword [rbx + 0x38]
+    PRINT_SERIAL_HEX rax
+
+    PRINT_SERIAL msg_val_dcbaap, msg_val_dcbaap_len
+    mov rax, qword [rbx + 0x30]
+    PRINT_SERIAL_HEX rax
 
 .init_done:
     pop r12
