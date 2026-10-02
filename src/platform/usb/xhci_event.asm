@@ -13,6 +13,12 @@ section .rodata
     msg_new_event:          db "[xHCI] Nouvel evenement detecte !", 13, 10
     msg_new_event_len       equ $ - msg_new_event
 
+    msg_port_change:        db "[xHCI] HOTPLUG : Port Status Change Event recu !", 13, 10
+    msg_port_change_len     equ $ - msg_port_change
+
+    msg_port_id:            db "[xHCI] -> Sur le Port ID : ", 0
+    msg_port_id_len         equ $ - msg_port_id
+
 section .data
 
     event_ccs:              db 1
@@ -41,7 +47,26 @@ xhci_poll_event:
     cmp dl, cl
     jne .no_event
 
+    mov edx, eax
+    shr edx, 10
+    and edx, 0x3F
+
+    cmp edx, 34
+    je .is_port_change
+
     PRINT_SERIAL msg_new_event, msg_new_event_len
+    jmp .continue_event
+
+.is_port_change:
+
+    PRINT_SERIAL msg_port_change, msg_port_change_len
+    PRINT_SERIAL msg_port_id, msg_port_id_len
+
+    mov eax, dword [rbx + 0]
+    shr eax, 24
+
+    PRINT_SERIAL_HEX rax
+.continue_event:
 
     add r12, 16
     cmp r12, 4096
