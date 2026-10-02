@@ -45,6 +45,9 @@ section .rodata
     msg_val_erstba:           db "[xHCI] Read-back ERSTBA : "
     msg_val_erstba_len        equ $ - msg_val_erstba
 
+    msg_xhci_running:         db "[xHCI] Le controleur est en mode RUN !", 13, 10
+    msg_xhci_running_len      equ $ - msg_xhci_running
+
 section .text
 
 init_xhci:
@@ -171,6 +174,23 @@ init_xhci:
     PRINT_SERIAL msg_val_erstba, msg_val_erstba_len
     mov rax, qword [r8 + 0x10]
     PRINT_SERIAL_HEX rax
+
+    ; Allumer le controleur
+    ; bit Run/Stop (bit 0 de USBCMD)
+    ; USBCMD est à offset 0x00 de Operational Base (RBX)
+    mov eax, dword [rbx + 0x00]
+    or eax, 0x01
+    mov dword [rbx + 0x00], eax
+
+.wait_running:
+    ; bit HCH (Halted) (bit 0 de USBSTS)
+    ; USBSTS est à offset 0x04 de Operational Base
+    mov eax, dword [rbx + 0x04]
+    test eax, 0x01
+    jnz .wait_running
+
+    PRINT_SERIAL msg_xhci_running, msg_xhci_running_len
+
 
 .init_done:
     pop r12
