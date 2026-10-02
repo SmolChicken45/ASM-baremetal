@@ -14,6 +14,10 @@ align 64
 xhci_dcbaa: resq 256
 align 4096 ; Pour être aligné sur une page entière
 xhci_cmd_ring: resb 4096
+align 4096
+xhci_event_ring: resb 4096
+align 64
+xhci_erst: resb 64
 
 
 section .rodata
@@ -34,6 +38,12 @@ section .rodata
 
     msg_val_crcr:             db "[xHCI] Read-back CRCR : "
     msg_val_crcr_len          equ $ - msg_val_crcr
+
+    msg_val_erdp:             db "[xHCI] Read-back ERDP : "
+    msg_val_erdp_len          equ $ - msg_val_erdp
+
+    msg_val_erstba:           db "[xHCI] Read-back ERSTBA : "
+    msg_val_erstba_len        equ $ - msg_val_erstba
 
 section .text
 
@@ -111,7 +121,56 @@ init_xhci:
     mov rax, qword [rbx + 0x18]
     PRINT_SERIAL_HEX rax
 
+    ; Allocation de l'event ring et de l'ERST
+    mov eax, dword [r12 + 0x18]     ; Lire RTSOFF
+    and eax, 0xFFFFFFE0
+    lea r8, [r12 + rax]             ; R8 = Base des runtime registers
 
+    lea r8, [r8 + 0x20]             ; R8 = Base de l'Interrupter 0
+
+    lea rax, [rel xhci_event_ring]
+    mov rdi, [rel get_kernel_address_response]
+    mov rcx, qword [rdi + 0x10]
+    sub rax, rcx
+    mov rdx, qword [rdi + 0x08]
+    add rax, rdx                    ; RAX = adresse physique de l'Event ring
+    mov r14, rax
+
+    lea rdi, [rel xhci_erst]
+
+    ; Une entrée ERST = 16 octets :
+    ; [0..7]  : Adresse Physique du Segment (R14)
+    ; [8..11] : Taille du segment en nombre de TRB (256)
+    ; [12..15]: Réservé (0)
+    mov qword [rdi + 0], r14
+    mov dword [rdi + 8], 256
+    mov dword [rdi + 12], 0
+
+    lea rax, [rel xhci_erst]
+    mov rdi, [rel get_kernel_address_response]
+    mov rcx, qword [rdi + 0x10]
+    sub rax, rcx
+    mov rdx, qword [rdi + 0x08]
+    add rax, rdx                    ; rax = adresse physique de l'ERST
+    mov r15, rax
+
+
+    ; Configurer les registres de l'Interrupter 0
+
+    ; ERSTSZ
+    mov dword [r8 + 0x08], 1
+    ; ERDP
+    mov qword [r8 + 0x18], r14
+    ; ERSTBA
+    mov qword [r8 + 0x10], r15
+
+    PRINT_SERIAL msg_val_erdp, msg_val_erdp_len
+    mov rax, qword [r8 + 0x18]
+    PRINT_SERIAL_HEX rax
+
+    PRINT_SERIAL msg_val_erstba, msg_val_erstba_len
+    mov rax, qword [r8 + 0x10]
+    PRINT_SERIAL_HEX rax
 
 .init_done:
     pop r12
