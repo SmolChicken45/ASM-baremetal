@@ -8,6 +8,7 @@ extern memory_init
 extern detect_cdrom
 extern init_idt
 extern get_xhci_device
+extern init_xhci
 
 extern serial_write_byte
 
@@ -26,6 +27,7 @@ boot_init:
 
     ; USB
     call get_xhci_device
+    call init_xhci
 
     ; Les Assets
 	call detect_cdrom
