@@ -4,6 +4,7 @@
 %define SERIAL_INC
 
 extern serial_write_string
+extern serial_write_rax_hex
 
 %macro PRINT_SERIAL 2
     push rax
@@ -24,6 +25,14 @@ extern serial_write_string
     pop r8
     pop rdx
     pop rcx
+    pop rax
+%endmacro
+
+
+%macro PRINT_SERIAL_HEX 1
+    push rax
+    mov rax, %1
+    call serial_write_rax_hex
     pop rax
 %endmacro
 

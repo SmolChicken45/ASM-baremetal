@@ -1,8 +1,13 @@
 [BITS 64]
+global serial_write_rax_hex
 global serial_write_string
 global serial_write_qword
 global serial_write_byte
 global serial_init
+
+section .data
+    hex_buffer:     db "0x0000000000000000", 13, 10
+    hex_buffer_len  equ $ - hex_buffer
 
 section .text
 ; -------------------------------------
@@ -142,3 +147,45 @@ serial_write_string:
     pop rbx
     ret
     
+
+serial_write_rax_hex:
+    push rax
+    push rcx
+    push rdx
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
+
+    mov rcx, 16
+    lea rdi, [rel hex_buffer + 17]
+
+.hex_loop:
+    mov rdx, rax
+    and rdx, 0x0F
+    add dl, '0'
+    cmp dl, '9'
+    jbe .store_char
+    add dl, 7
+
+.store_char:
+    mov byte [rdi], dl
+    dec rdi
+    shr rax, 4
+    dec rcx
+    jnz .hex_loop
+
+    lea rax, [rel hex_buffer]
+    mov rcx, hex_buffer_len
+    call serial_write_string
+
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rax
+    ret
