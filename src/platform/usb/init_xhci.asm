@@ -12,6 +12,9 @@ section .bss
 align 64
 
 xhci_dcbaa: resq 256
+align 4096 ; Pour être aligné sur une page entière
+xhci_cmd_ring: resb 4096
+
 
 section .rodata
     msg_reset_xhci_start:     db "[xHCI] Début du reset du xHCI ", 13, 10
@@ -28,6 +31,9 @@ section .rodata
 
     msg_val_dcbaap:           db "[xHCI] Read-back DCBAAP (Phys Addr): "
     msg_val_dcbaap_len        equ $ - msg_val_dcbaap
+
+    msg_val_crcr:             db "[xHCI] Read-back CRCR : "
+    msg_val_crcr_len          equ $ - msg_val_crcr
 
 section .text
 
@@ -78,6 +84,34 @@ init_xhci:
     PRINT_SERIAL msg_val_dcbaap, msg_val_dcbaap_len
     mov rax, qword [rbx + 0x30]
     PRINT_SERIAL_HEX rax
+
+    ; CONFIG DU COMMAND ING (CRCR)
+    lea rax, [rel xhci_cmd_ring]
+    mov rdi, [rel get_kernel_address_response]
+
+    mov rcx, qword [rdi + 0x10]
+    sub rax, rcx
+    mov rdx, qword [rdi + 0x08]
+    add rax, rdx        ; RAX = adresse Physique du Command Ring
+
+    lea rdi, [rel xhci_cmd_ring]
+    mov qword [rdi + 4080], rax
+
+    mov dword [rdi + 4088], 0
+    ; Les 4 derniers octets (offset 12) contiennent le Type et les Flags.
+    ; TRB Type = 6 (Link TRB) -> on décale de 10 bits: (6 << 10) = 0x1800
+    ; Bit Toggle Cycle (TC) = bit 1 (0x02) : Indique au matériel que le cycle bascule ici.
+    mov dword [rdi + 4092], 0x1802
+
+    mov rcx, rax
+    or rcx, 1
+    mov qword [rbx + 0x18], rcx
+
+    PRINT_SERIAL msg_val_crcr, msg_val_crcr_len
+    mov rax, qword [rbx + 0x18]
+    PRINT_SERIAL_HEX rax
+
+
 
 .init_done:
     pop r12
