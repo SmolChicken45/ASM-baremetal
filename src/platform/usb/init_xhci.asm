@@ -4,6 +4,9 @@ DEFAULT REL
 %include "platform/serial.inc"
 
 global init_xhci
+global xhci_runtime_base
+global xhci_event_ring_phys
+global xhci_event_ring
 
 extern xhci_bar0
 extern get_kernel_address_response
@@ -18,6 +21,9 @@ align 4096
 xhci_event_ring: resb 4096
 align 64
 xhci_erst: resb 64
+align 8
+xhci_event_ring_phys: resq 1
+xhci_runtime_base: resq 1
 
 
 section .rodata
@@ -129,6 +135,8 @@ init_xhci:
     and eax, 0xFFFFFFE0
     lea r8, [r12 + rax]             ; R8 = Base des runtime registers
 
+    mov qword [rel xhci_runtime_base], r8
+
     lea r8, [r8 + 0x20]             ; R8 = Base de l'Interrupter 0
 
     lea rax, [rel xhci_event_ring]
@@ -138,6 +146,7 @@ init_xhci:
     mov rdx, qword [rdi + 0x08]
     add rax, rdx                    ; RAX = adresse physique de l'Event ring
     mov r14, rax
+    mov qword [rel xhci_event_ring_phys], rax
 
     lea rdi, [rel xhci_erst]
 
