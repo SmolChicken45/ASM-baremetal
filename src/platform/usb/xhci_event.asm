@@ -9,6 +9,7 @@ extern xhci_event_ring
 extern xhci_event_ring_phys
 extern xhci_runtime_base
 extern xhci_handle_port_change
+extern xhci_setup_device_context
 
 section .rodata
     msg_new_event:          db "[xHCI] Nouvel evenement detecte !", 13, 10
@@ -17,8 +18,14 @@ section .rodata
     msg_port_change:        db "[xHCI] HOTPLUG : Port Status Change Event recu !", 13, 10
     msg_port_change_len     equ $ - msg_port_change
 
-    msg_port_id:            db "[xHCI] -> Sur le Port ID : ", 0
+    msg_port_id:            db "[xHCI] -> Sur le Port ID : "
     msg_port_id_len         equ $ - msg_port_id
+
+    msg_cmd_ok:             db "[xHCI] Commande terminée avec succès ! Slot ID obtenu : "
+    msg_cmd_ok_len          equ $ - msg_cmd_ok
+
+    msg_cmd_fail:           db "[xHCI] Commande terminée avec une faute", 13, 10
+    msg_cmd_fail_len        equ $ - msg_cmd_fail
 
 section .data
 
@@ -26,6 +33,7 @@ section .data
 
 section .bss
     event_ring_index:       resq 1
+    current_slot_id:        resd 1
 
 section .text
 
@@ -55,6 +63,9 @@ xhci_poll_event:
     cmp edx, 34
     je .is_port_change
 
+    cmp edx, 33
+    je .is_cmd_completion
+
     PRINT_SERIAL msg_new_event, msg_new_event_len
     jmp .continue_event
 
@@ -69,6 +80,30 @@ xhci_poll_event:
     call xhci_handle_port_change
 
     jmp .continue_event
+
+.is_cmd_completion:
+
+    mov ecx, dword [rbx + 8]
+    shr ecx, 24
+    cmp ecx, 1
+    jne .cmd_failed
+
+    mov ecx, dword [rbx + 12]   ; Lire le dword 3
+    shr ecx, 24                 ; Isoler le Slot ID (24-31)
+
+    mov dword [rel current_slot_id], ecx
+
+    PRINT_SERIAL msg_cmd_ok, msg_cmd_ok_len
+    mov rax, rcx
+    PRINT_SERIAL_HEX rax
+
+    ; Création des context
+    call xhci_setup_device_context
+
+    jmp .continue_event
+
+.cmd_failed:
+    PRINT_SERIAL msg_cmd_fail, msg_cmd_fail_len
 
 .continue_event:
 
