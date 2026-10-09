@@ -7,6 +7,7 @@ global init_xhci
 global xhci_runtime_base
 global xhci_event_ring_phys
 global xhci_event_ring
+global xhci_op_base
 
 extern xhci_bar0
 extern get_kernel_address_response
@@ -24,6 +25,8 @@ xhci_erst: resb 64
 align 8
 xhci_event_ring_phys: resq 1
 xhci_runtime_base: resq 1
+align 8
+xhci_op_base: resq 1
 
 
 section .rodata
@@ -71,6 +74,7 @@ init_xhci:
     ; Trouver la base des registres opérationnels
     movzx eax, byte [r12]
     lea rbx, [r12 + rax]
+    mov qword [rel xhci_op_base], rbx
 
     call reset_xhci
 

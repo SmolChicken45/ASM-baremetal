@@ -8,6 +8,7 @@ global xhci_poll_event
 extern xhci_event_ring
 extern xhci_event_ring_phys
 extern xhci_runtime_base
+extern xhci_handle_port_change
 
 section .rodata
     msg_new_event:          db "[xHCI] Nouvel evenement detecte !", 13, 10
@@ -59,13 +60,16 @@ xhci_poll_event:
 
 .is_port_change:
 
-    PRINT_SERIAL msg_port_change, msg_port_change_len
-    PRINT_SERIAL msg_port_id, msg_port_id_len
+    ; PRINT_SERIAL msg_port_change, msg_port_change_len
+    ; PRINT_SERIAL msg_port_id, msg_port_id_len
 
     mov eax, dword [rbx + 0]
     shr eax, 24
 
-    PRINT_SERIAL_HEX rax
+    call xhci_handle_port_change
+
+    jmp .continue_event
+
 .continue_event:
 
     add r12, 16
