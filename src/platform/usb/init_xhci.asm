@@ -8,9 +8,16 @@ global xhci_runtime_base
 global xhci_event_ring_phys
 global xhci_event_ring
 global xhci_op_base
+global xhci_doorbell_base
+global command_ring_index
+global command_cycle_state
+global xhci_cmd_ring
 
 extern xhci_bar0
 extern get_kernel_address_response
+
+section .data
+    command_cycle_state: db 1
 
 section .bss
 align 64
@@ -22,12 +29,13 @@ align 4096
 xhci_event_ring: resb 4096
 align 64
 xhci_erst: resb 64
+command_ring_index: resq 1
 align 8
 xhci_event_ring_phys: resq 1
 xhci_runtime_base: resq 1
 align 8
 xhci_op_base: resq 1
-
+xhci_doorbell_base: resq 1
 
 section .rodata
     msg_reset_xhci_start:     db "[xHCI] Début du reset du xHCI ", 13, 10
@@ -134,6 +142,11 @@ init_xhci:
     mov rax, qword [rbx + 0x18]
     PRINT_SERIAL_HEX rax
 
+    mov eax, dword [r12 + 0x14] ; Lire DBOFF
+    and eax, 0xFFFFFFFC
+    lea r9, [r12 + rax]
+    mov qword [rel xhci_doorbell_base], r9
+
     ; Allocation de l'event ring et de l'ERST
     mov eax, dword [r12 + 0x18]     ; Lire RTSOFF
     and eax, 0xFFFFFFE0
@@ -151,6 +164,8 @@ init_xhci:
     add rax, rdx                    ; RAX = adresse physique de l'Event ring
     mov r14, rax
     mov qword [rel xhci_event_ring_phys], rax
+
+    mov qword [rel command_ring_index], 0
 
     lea rdi, [rel xhci_erst]
 

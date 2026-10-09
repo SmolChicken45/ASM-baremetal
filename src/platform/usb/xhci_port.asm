@@ -4,8 +4,16 @@ DEFAULT REL
 %include "platform/serial.inc"
 
 global xhci_handle_port_change
-extern xhci_op_base
+global current_port_id
+global current_port_speed
 
+extern xhci_op_base
+extern get_kernel_address_response
+extern xhci_send_enable_slot_cmd
+
+section .bss
+current_port_id: resd 1
+current_port_speed: resd 1
 ; Pour trouver le registre PORTSC = Op_base + 0x400 + (16 * (Port_ID - 1))
 
 section .rodata
@@ -69,14 +77,23 @@ xhci_handle_port_change:
     or ecx, (1 << 17) | (1 << 19) | (1 << 21)
     mov dword [rbx], ecx
 
+    shr rax, 4
+    inc rax
+
+    mov dword [rel current_port_id], eax
+
     ; Lecture de la vitesse du périphérique
     mov eax, dword [rbx]
 
     shr eax, 10     ; Amener le bit 10 à la pos 0
     and eax, 0x0F   ; Masquer pour garder 4 bits
 
+    mov dword [rel current_port_speed], eax
+
     PRINT_SERIAL msg_speed, msg_speed_len
     PRINT_SERIAL_HEX rax
+
+    call xhci_send_enable_slot_cmd
 
     jmp .done
 
