@@ -4,6 +4,8 @@ DEFAULT REL
 %include "platform/serial.inc"
 
 global xhci_setup_device_context
+global xhci_output_context
+global xhci_input_context
 
 extern current_port_id
 extern current_port_speed
@@ -12,6 +14,7 @@ extern get_kernel_address_response
 section .bss
 align 4096
 xhci_input_context: resb 4096   ; 1 page pour l'input context
+xhci_output_context: resb 4096
 xhci_ep0_ring:      resb 4096   ; 1 page pour le Transfer Ring de l'EP0
 
 section .rodata

@@ -12,6 +12,7 @@ global xhci_doorbell_base
 global command_ring_index
 global command_cycle_state
 global xhci_cmd_ring
+global xhci_dcbaa
 
 extern xhci_bar0
 extern get_kernel_address_response

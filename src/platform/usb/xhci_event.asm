@@ -4,12 +4,19 @@ DEFAULT REL
 %include "platform/serial.inc"
 
 global xhci_poll_event
+global current_slot_id
 
 extern xhci_event_ring
 extern xhci_event_ring_phys
 extern xhci_runtime_base
 extern xhci_handle_port_change
 extern xhci_setup_device_context
+extern xhci_output_context
+extern get_kernel_address_response
+extern xhci_dcbaa
+extern xhci_send_address_device_cmd
+extern device_init_state
+
 
 section .rodata
     msg_new_event:          db "[xHCI] Nouvel evenement detecte !", 13, 10
@@ -26,6 +33,9 @@ section .rodata
 
     msg_cmd_fail:           db "[xHCI] Commande terminée avec une faute", 13, 10
     msg_cmd_fail_len        equ $ - msg_cmd_fail
+
+    msg_addr_ok:            db "[xHCI] Address device réussi !, Adresse USB : "
+    msg_addr_ok_len         equ $ - msg_addr_ok
 
 section .data
 
@@ -88,6 +98,16 @@ xhci_poll_event:
     cmp ecx, 1
     jne .cmd_failed
 
+    mov eax, dword [rel device_init_state]
+    cmp eax, 1
+    je .handle_enable_slot_success
+
+    cmp eax, 2
+    je .handle_address_device_success
+
+    jmp .continue_event
+
+.handle_enable_slot_success:
     mov ecx, dword [rbx + 12]   ; Lire le dword 3
     shr ecx, 24                 ; Isoler le Slot ID (24-31)
 
@@ -99,6 +119,37 @@ xhci_poll_event:
 
     ; Création des context
     call xhci_setup_device_context
+
+    ; output_context en adresse Physique
+    lea rax, [rel xhci_output_context]
+    mov rdi, [rel get_kernel_address_response]
+    mov rcx, qword [rdi + 0x10]
+    sub rax, rcx
+    mov rdx, qword [rdi + 0x08]
+    add rax, rdx
+
+    lea rbx, qword [rel xhci_dcbaa]
+    mov ecx, dword [rel current_slot_id]
+    mov qword [rbx + rcx * 8], rax
+
+    call xhci_send_address_device_cmd
+
+    jmp .continue_event
+
+.handle_address_device_success:
+    PRINT_SERIAL msg_addr_ok, msg_addr_ok_len
+
+    ; La commande a réussi, l'adresse USB a été attirbuée par le matéiel
+    ; Le xHCI a écrit cette adresse dans le Slot Context de l'OUTPUT Context
+    ; Le Slot COntext commence à l'offset 0x00 de l'Output COntext
+    ; L'adresse USB est dans le DWORD 3
+    lea rbx, [rel xhci_output_context]
+    mov eax, dword [rbx + 0x0C]
+    and eax, 0xFF
+
+    PRINT_SERIAL_HEX rax
+
+    mov dword [rel device_init_state], 0
 
     jmp .continue_event
 
