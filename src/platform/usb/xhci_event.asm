@@ -3,7 +3,7 @@ DEFAULT REL
 
 %include "platform/serial.inc"
 
-global xhci_poll_event
+global xhci_event_handler
 global current_slot_id
 
 extern xhci_event_ring
@@ -47,10 +47,21 @@ section .bss
 
 section .text
 
-xhci_poll_event:
+xhci_event_handler:
+    push rax
     push rbx
+    push rcx
+    push rdx
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
     push r12
     push r13
+    push r14
+    push r15
+
 
     ; TRB actuel
     lea rbx, [rel xhci_event_ring]
@@ -174,10 +185,25 @@ xhci_poll_event:
 
     or rax, 8
 
-    mov qword [r13 + 0x18], rax
+    mov qword [r13 + 0x38], rax
 
 .no_event:
+    mov rbx, 0xFFFF8000FEE000B0
+    mov eax, 0
+    mov dword [rbx], eax
+
+    pop r15
+    pop r14
     pop r13
     pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rdx
+    pop rcx
     pop rbx
-    ret
+    pop rax
+
+    iretq

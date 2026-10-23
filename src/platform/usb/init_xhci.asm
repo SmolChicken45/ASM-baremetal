@@ -13,9 +13,17 @@ global command_ring_index
 global command_cycle_state
 global xhci_cmd_ring
 global xhci_dcbaa
+global pci_xhci_enable_msi
+global start_xhci_run
 
 extern xhci_bar0
 extern get_kernel_address_response
+extern pci_enable_msi
+extern xhci_bus
+extern xhci_dev
+extern xhci_func
+extern pci_read_dword
+extern pci_write_dword
 
 section .data
     command_cycle_state: db 1
@@ -66,12 +74,46 @@ section .rodata
     msg_xhci_running:         db "[xHCI] Le controleur est en mode RUN !", 13, 10
     msg_xhci_running_len      equ $ - msg_xhci_running
 
+    msg_msi_no:               db "ERREUR: Capabilité MSI non trouvé !", 13, 10
+    msg_msi_no_len            equ $ - msg_msi_no
 section .text
+
+pci_xhci_enable_msi:
+    mov cl, byte [xhci_bus]
+    mov dl, byte [xhci_dev]
+    mov r8b, byte [xhci_func]
+    mov r10d, 0x22
+    call pci_enable_msi
+    ret
+
+start_xhci_run:
+    mov rdx, [rel xhci_op_base]
+    mov eax, dword [rdx]
+    or eax, 0x05
+    mov dword [rdx + 0x00], eax
+    ret
 
 init_xhci:
 
     push rbx
     push r12
+
+    ; Forcer l'activation du bus master
+    mov cl, byte [xhci_bus]
+    mov dl, byte [xhci_dev]
+    mov r8b, byte [xhci_func]
+    mov r9b, 0x04
+    call pci_read_dword
+
+    or eax, (1 << 2)
+
+    mov cl, byte [xhci_bus]
+    mov dl, byte [xhci_dev]
+    mov r8b, byte [xhci_func]
+    mov r9b, 0x04
+    call pci_write_dword
+
+
 
     ; Charger l'adresse de BAR0
     mov r12, [rel xhci_bar0]
@@ -195,6 +237,12 @@ init_xhci:
     mov qword [r8 + 0x18], r14
     ; ERSTBA
     mov qword [r8 + 0x10], r15
+    ; IMAN
+    mov eax, dword [r8 + 0x00]
+    or eax, 3       ; Bit 0 (CLear Pendinf) | Bit 1 (Interrupt Enable)
+    mov dword [r8 + 0x00], eax
+    ; IMOD
+    mov dword [r8 + 0x04], 4000
 
     PRINT_SERIAL msg_val_erdp, msg_val_erdp_len
     mov rax, qword [r8 + 0x18]
@@ -203,22 +251,6 @@ init_xhci:
     PRINT_SERIAL msg_val_erstba, msg_val_erstba_len
     mov rax, qword [r8 + 0x10]
     PRINT_SERIAL_HEX rax
-
-    ; Allumer le controleur
-    ; bit Run/Stop (bit 0 de USBCMD)
-    ; USBCMD est à offset 0x00 de Operational Base (RBX)
-    mov eax, dword [rbx + 0x00]
-    or eax, 0x01
-    mov dword [rbx + 0x00], eax
-
-.wait_running:
-    ; bit HCH (Halted) (bit 0 de USBSTS)
-    ; USBSTS est à offset 0x04 de Operational Base
-    mov eax, dword [rbx + 0x04]
-    test eax, 0x01
-    jnz .wait_running
-
-    PRINT_SERIAL msg_xhci_running, msg_xhci_running_len
 
 
 .init_done:

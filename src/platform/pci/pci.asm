@@ -4,6 +4,9 @@
 
 global get_audio_device
 global get_xhci_device
+global pci_enable_msi
+global pci_read_dword
+global pci_write_dword
 
 
 section .rodata
@@ -305,4 +308,114 @@ pci_write_dword:
     pop rdx
     pop rbx
 
+    ret
+
+; pci_enable_msi
+; Paramètres : CL = Bus, DL = Device, R8B = Fonction, R10D IDT (ex : 40 pour 0x28)
+; Retourne :
+; EAX = 1 si succès, 0 si échec
+
+pci_enable_msi:
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov r12b, cl
+    mov r13b, dl
+    mov r14b, r8b
+    mov r15d, r10d
+
+    mov r9b, 0x34
+    call pci_read_dword
+    and eax, 0xFF
+
+.search_loop:
+    cmp eax, 0
+    je .not_found
+
+    mov ebx, eax
+
+    mov cl, r12b
+    mov dl, r13b
+    mov r8b, r14b
+    mov r9b, bl
+    call pci_read_dword
+
+    ; EAX contient : [ Pointeur Suivant | Capability ID ]
+    mov r10d, eax
+    and r10d, 0xFF
+
+    cmp r10d, 0x05
+    je .found_msi
+
+    ; Sinon, on passe au pointeur suivant (bit 8-15)
+    shr eax, 8
+    and eax, 0xFF
+    jmp .search_loop
+
+.found_msi:
+    ; BL contient l'offset de base du registre MSI
+
+    ; Écrire le message Address (Offset BL + 4) = 0xFEE00000
+    mov cl, r12b
+    mov dl, r13b
+    mov r8b, r14b
+    mov r9b, bl
+    add r9b, 4
+    mov eax, 0xFEE00000
+    call pci_write_dword
+
+    mov r9b, bl
+    call pci_read_dword
+    test eax, (1 << 23)
+    jnz .msi_64_bit
+
+.msi_32_bit:
+    ; Écrire le Message DAta (Offset BL = 8) = Vecteur IDT
+    mov r9b, bl
+    add r9b, 8
+    mov eax, r15d
+    call pci_write_dword
+    jmp .enable_msi
+.msi_64_bit:
+    mov r9b, bl
+    add r9b, 8
+    xor eax, eax
+    call pci_write_dword
+
+    mov r9b, bl
+    add r9b, 12
+    mov eax, r15d
+    call pci_write_dword
+
+.enable_msi:
+    ; Activer le MSI dans le Message Control (offset BL + 0)
+    mov cl, r12b
+    mov dl, r13b
+    mov r8b, r14b
+    mov r9b, bl
+    call pci_read_dword
+
+    or eax, 0x00010000      ; Activer le bit 16
+
+    mov cl, r12b
+    mov dl, r13b
+    mov r8b, r14b
+    mov r9b, bl
+    call pci_write_dword
+
+    mov eax, 1
+    jmp .end
+
+.not_found:
+    xor eax, eax
+
+.end:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
     ret

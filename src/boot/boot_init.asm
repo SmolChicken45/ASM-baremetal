@@ -9,6 +9,8 @@ extern detect_cdrom
 extern init_idt
 extern get_xhci_device
 extern init_xhci
+extern pci_xhci_enable_msi
+extern start_xhci_run
 
 extern serial_write_byte
 
@@ -25,9 +27,7 @@ boot_init:
     call init_video
     call init_audio_system
 
-    ; USB
-    call get_xhci_device
-    call init_xhci
+
 
     ; Les Assets
 	call detect_cdrom
@@ -38,6 +38,12 @@ boot_init:
     call init_idt
     sti
 
+    ; USB
+    call get_xhci_device
+    call init_xhci
+
+    call pci_xhci_enable_msi
+    call start_xhci_run
 
     ; Signature de SmolChicken45 pour montrer que le init a fonctionné
     mov al, 0x53
