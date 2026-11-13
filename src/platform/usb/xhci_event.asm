@@ -2,6 +2,8 @@
 DEFAULT REL
 
 %include "platform/serial.inc"
+%include "platform/memory.inc"
+%include "platform/xhci.inc"
 
 global xhci_event_handler
 global current_slot_id
@@ -12,30 +14,11 @@ extern xhci_runtime_base
 extern xhci_handle_port_change
 extern xhci_setup_device_context
 extern xhci_output_context
-extern get_kernel_address_response
 extern xhci_dcbaa
 extern xhci_send_address_device_cmd
 extern device_init_state
 
 
-section .rodata
-    msg_new_event:          db "[xHCI] Nouvel evenement detecte !", 13, 10
-    msg_new_event_len       equ $ - msg_new_event
-
-    msg_port_change:        db "[xHCI] HOTPLUG : Port Status Change Event recu !", 13, 10
-    msg_port_change_len     equ $ - msg_port_change
-
-    msg_port_id:            db "[xHCI] -> Sur le Port ID : "
-    msg_port_id_len         equ $ - msg_port_id
-
-    msg_cmd_ok:             db "[xHCI] Commande terminée avec succès ! Slot ID obtenu : "
-    msg_cmd_ok_len          equ $ - msg_cmd_ok
-
-    msg_cmd_fail:           db "[xHCI] Commande terminée avec une faute", 13, 10
-    msg_cmd_fail_len        equ $ - msg_cmd_fail
-
-    msg_addr_ok:            db "[xHCI] Address device réussi !, Adresse USB : "
-    msg_addr_ok_len         equ $ - msg_addr_ok
 
 section .data
 
@@ -62,41 +45,42 @@ xhci_event_handler:
     push r14
     push r15
 
-
+.process_next_event:
     ; TRB actuel
     lea rbx, [rel xhci_event_ring]
     mov r12, qword [rel event_ring_index]
     add rbx, r12
 
-    mov eax, dword [rbx + 12]
-
+    mov eax, dword [rbx + TRB_EVENT_CTRL]
+    LOG_HEX "Valeur brute TRB_EVENT_CTRL lue : ", rax
     ; Vérifier le Cycle Bit (bit 0)
     mov cl, byte [rel event_ccs]
     mov edx, eax
     and edx, 1
     cmp dl, cl
-    jne .no_event
+    jne .no_more_events
 
+    ; Isoler le type de TRB
     mov edx, eax
-    shr edx, 10
+    shr edx, TRB_TYPE_SHIFT
     and edx, 0x3F
 
-    cmp edx, 34
+    cmp edx, TRB_TYPE_PORT_STAT
     je .is_port_change
 
-    cmp edx, 33
+    cmp edx, TRB_TYPE_CMD_COMPL
     je .is_cmd_completion
 
-    PRINT_SERIAL msg_new_event, msg_new_event_len
+    PRINT_INLINE "[xHCI] Nouvel evenement detecte !"
     jmp .continue_event
 
 .is_port_change:
 
-    ; PRINT_SERIAL msg_port_change, msg_port_change_len
-    ; PRINT_SERIAL msg_port_id, msg_port_id_len
+    ; PRINT_INLINE "[xHCI] HOTPLUG : Port Status Change Event recu !"
+    ; PRINT_INLINE "[xHCI] -> Sur le Port ID : "
 
-    mov eax, dword [rbx + 0]
-    shr eax, 24
+    mov eax, dword [rbx + TRB_EVENT_DATA]
+    shr eax, TRB_EVENT_PORT_SHIFT
 
     call xhci_handle_port_change
 
@@ -104,40 +88,34 @@ xhci_event_handler:
 
 .is_cmd_completion:
 
-    mov ecx, dword [rbx + 8]
-    shr ecx, 24
-    cmp ecx, 1
+    mov ecx, dword [rbx + TRB_EVENT_STATUS]
+    shr ecx, TRB_COMPL_CODE_SHIFT
+    cmp ecx, COMPL_SUCCESS
     jne .cmd_failed
 
     mov eax, dword [rel device_init_state]
-    cmp eax, 1
+    cmp eax, DEV_STATE_WAIT_SLOT
     je .handle_enable_slot_success
 
-    cmp eax, 2
+    cmp eax, DEV_STATE_WAIT_ADDR
     je .handle_address_device_success
 
     jmp .continue_event
 
 .handle_enable_slot_success:
-    mov ecx, dword [rbx + 12]   ; Lire le dword 3
-    shr ecx, 24                 ; Isoler le Slot ID (24-31)
+    mov ecx, dword [rbx + TRB_EVENT_CTRL]   ; Lire le dword 3
+    shr ecx, TRB_EVENT_SLOT_SHIFT                 ; Isoler le Slot ID (24-31)
 
     mov dword [rel current_slot_id], ecx
 
-    PRINT_SERIAL msg_cmd_ok, msg_cmd_ok_len
-    mov rax, rcx
-    PRINT_SERIAL_HEX rax
+    LOG_HEX "[xHCI] Commande terminée avec succès ! Slot ID obtenu : ", rcx
 
     ; Création des context
     call xhci_setup_device_context
 
     ; output_context en adresse Physique
     lea rax, [rel xhci_output_context]
-    mov rdi, [rel get_kernel_address_response]
-    mov rcx, qword [rdi + 0x10]
-    sub rax, rcx
-    mov rdx, qword [rdi + 0x08]
-    add rax, rdx
+    VIRT_TO_PHYS rax
 
     lea rbx, qword [rel xhci_dcbaa]
     mov ecx, dword [rel current_slot_id]
@@ -148,7 +126,6 @@ xhci_event_handler:
     jmp .continue_event
 
 .handle_address_device_success:
-    PRINT_SERIAL msg_addr_ok, msg_addr_ok_len
 
     ; La commande a réussi, l'adresse USB a été attirbuée par le matéiel
     ; Le xHCI a écrit cette adresse dans le Slot Context de l'OUTPUT Context
@@ -158,36 +135,38 @@ xhci_event_handler:
     mov eax, dword [rbx + 0x0C]
     and eax, 0xFF
 
-    PRINT_SERIAL_HEX rax
+    LOG_HEX "[xHCI] Address device réussi !, Adresse USB : ", rax
 
-    mov dword [rel device_init_state], 0
+    mov dword [rel device_init_state], DEV_STATE_IDLE
 
     jmp .continue_event
 
 .cmd_failed:
-    PRINT_SERIAL msg_cmd_fail, msg_cmd_fail_len
+    PRINT_INLINE "[xHCI] Commande terminée avec une faute"
 
 .continue_event:
 
     add r12, 16
     cmp r12, 4096
-    jl .update_erdp
+    jl .save_index
 
     xor r12, r12
     xor byte [rel event_ccs], 1
 
-.update_erdp:
+.save_index:
     mov qword [rel event_ring_index], r12
+    jmp .process_next_event
+
+.no_more_events:
 
     mov r13, qword [rel xhci_runtime_base]
     mov rax, qword [rel xhci_event_ring_phys]
     add rax, r12
 
-    or rax, 8
+    or rax, 8   ; Activer le bit EHB (Event Handler Busy)
 
-    mov qword [r13 + 0x38], rax
+    mov qword [r13 + XHCI_IR0_BASE + XHCI_ERDP], rax
 
-.no_event:
     mov rbx, 0xFFFF8000FEE000B0
     mov eax, 0
     mov dword [rbx], eax

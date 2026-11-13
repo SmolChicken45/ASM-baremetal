@@ -36,4 +36,25 @@ extern serial_write_rax_hex
     pop rax
 %endmacro
 
+%macro PRINT_STR 1
+    section .rodata
+        %%str: db %1
+        %%str_len equ $ - %%str
+    section .text
+        PRINT_SERIAL %%str, %%str_len
+%endmacro
+
+%macro PRINT_INLINE 1
+    section .rodata
+        %%str: db %1, 13, 10
+        %%str_len equ $ - %%str
+    section .text
+        PRINT_SERIAL %%str, %%str_len
+%endmacro
+
+%macro LOG_HEX 2
+    PRINT_STR %1
+    PRINT_SERIAL_HEX %2
+%endmacro
+
 %endif ; SERIAL_INC

@@ -2,22 +2,37 @@
 DEFAULT REL
 
 %include "platform/serial.inc"
+%include "platform/memory.inc"
+%include "platform/xhci.inc"
 
+; CONSTANTES PCI LOCALES
+%define PCI_COMMAND_REG     0x04
+%define PCI_CMD_BUS_MASTER  (1 << 2)
+; -----------------------------------------
+; EXPORTATIONS
+; -----------------------------------------
+; Méthodes publiques
 global init_xhci
-global xhci_runtime_base
-global xhci_event_ring_phys
-global xhci_event_ring
-global xhci_op_base
-global xhci_doorbell_base
-global command_ring_index
-global command_cycle_state
-global xhci_cmd_ring
-global xhci_dcbaa
-global pci_xhci_enable_msi
 global start_xhci_run
+global pci_xhci_enable_msi
+
+; Variables publiques
+global xhci_op_base
+global xhci_runtime_base
+global xhci_doorbell_base
+
+; ----------------------------------------
+; IMPORTATIONS
+; ----------------------------------------
 
 extern xhci_bar0
-extern get_kernel_address_response
+extern xhci_dcbaa
+
+extern init_xhci_command_ring
+extern init_xhci_event_ring
+
+
+; Reste à clairer peut à peut
 extern pci_enable_msi
 extern xhci_bus
 extern xhci_dev
@@ -25,59 +40,21 @@ extern xhci_func
 extern pci_read_dword
 extern pci_write_dword
 
-section .data
-    command_cycle_state: db 1
-
+; ----------------------------------------------------
+; DONNÉES GLOBALES
+; ----------------------------------------------------
 section .bss
-align 64
 
-xhci_dcbaa: resq 256
-align 4096 ; Pour être aligné sur une page entière
-xhci_cmd_ring: resb 4096
-align 4096
-xhci_event_ring: resb 4096
-align 64
-xhci_erst: resb 64
-command_ring_index: resq 1
-align 8
-xhci_event_ring_phys: resq 1
-xhci_runtime_base: resq 1
 align 8
 xhci_op_base: resq 1
+xhci_runtime_base: resq 1
 xhci_doorbell_base: resq 1
 
-section .rodata
-    msg_reset_xhci_start:     db "[xHCI] Début du reset du xHCI ", 13, 10
-    msg_reset_xhci_start_len  equ $ - msg_reset_xhci_start
-
-    msg_reset_envoyee:        db "[xHCI] Reset envoyée au HCRST", 13, 10
-    msg_reset_envoyee_len     equ $ - msg_reset_envoyee
-
-    msg_reset_done:           db "[xHCI] Reset effectué, le xHCI est prêt à être configuré", 13, 10
-    msg_reset_done_len        equ $ - msg_reset_done
-
-    msg_val_config:           db "[xHCI] Read-back CONFIG (MaxSlots) : "
-    msg_val_config_len        equ $ - msg_val_config
-
-    msg_val_dcbaap:           db "[xHCI] Read-back DCBAAP (Phys Addr): "
-    msg_val_dcbaap_len        equ $ - msg_val_dcbaap
-
-    msg_val_crcr:             db "[xHCI] Read-back CRCR : "
-    msg_val_crcr_len          equ $ - msg_val_crcr
-
-    msg_val_erdp:             db "[xHCI] Read-back ERDP : "
-    msg_val_erdp_len          equ $ - msg_val_erdp
-
-    msg_val_erstba:           db "[xHCI] Read-back ERSTBA : "
-    msg_val_erstba_len        equ $ - msg_val_erstba
-
-    msg_xhci_running:         db "[xHCI] Le controleur est en mode RUN !", 13, 10
-    msg_xhci_running_len      equ $ - msg_xhci_running
-
-    msg_msi_no:               db "ERREUR: Capabilité MSI non trouvé !", 13, 10
-    msg_msi_no_len            equ $ - msg_msi_no
 section .text
 
+; =============================================================================
+; FONCTION : pci_xhci_enable_msi
+; =============================================================================
 pci_xhci_enable_msi:
     mov cl, byte [xhci_bus]
     mov dl, byte [xhci_dev]
@@ -85,14 +62,21 @@ pci_xhci_enable_msi:
     mov r10d, 0x22
     call pci_enable_msi
     ret
-
+; =============================================================================
+; FONCTION : start_xhci_run
+; Rôle : Allume le contrôleur (Run) et active les interruptions globales (INTE)
+; =============================================================================
 start_xhci_run:
     mov rdx, [rel xhci_op_base]
-    mov eax, dword [rdx]
-    or eax, 0x05
-    mov dword [rdx + 0x00], eax
+    mov eax, dword [rdx + XHCI_USBCMD]
+    or eax, (XHCI_CMD_RUN | XHCI_CMD_INTE)
+    mov dword [rdx + XHCI_USBCMD], eax
     ret
 
+; =============================================================================
+; FONCTION : init_xhci
+; Rôle : Séquence principale d"initialisation du contrôleur matériel
+; =============================================================================
 init_xhci:
 
     push rbx
@@ -102,201 +86,142 @@ init_xhci:
     mov cl, byte [xhci_bus]
     mov dl, byte [xhci_dev]
     mov r8b, byte [xhci_func]
-    mov r9b, 0x04
+    mov r9b, PCI_COMMAND_REG
     call pci_read_dword
 
-    or eax, (1 << 2)
+    or eax, PCI_CMD_BUS_MASTER
 
     mov cl, byte [xhci_bus]
     mov dl, byte [xhci_dev]
     mov r8b, byte [xhci_func]
-    mov r9b, 0x04
+    mov r9b, PCI_COMMAND_REG
     call pci_write_dword
 
 
-
-    ; Charger l'adresse de BAR0
-    mov r12, [rel xhci_bar0]
+    ; ---------------------------------------------------------------
+    ; Localisation des bases matérielles (Cap, Op, Runtime, Doorbell)
+    ; ---------------------------------------------------------------
+    mov r12, [rel xhci_bar0]    ; R12 = Capability Base (BAR0 mappé)
     test r12, r12
     jz .init_done
 
-    PRINT_SERIAL msg_reset_xhci_start, msg_reset_xhci_start_len
+    PRINT_INLINE "[xHCI] Début du reset du xHCI"
 
-    ; Trouver la base des registres opérationnels
-    movzx eax, byte [r12]
+    ; Calcul de l'Operational Base
+    movzx eax, byte [r12 + XHCI_CAPLENGTH]
     lea rbx, [r12 + rax]
     mov qword [rel xhci_op_base], rbx
 
-    call reset_xhci
-
-    ; Configurer le registre CONFIG (MaxSlotsEn)
-    ; Lire HCSPARAMS1
-    mov eax, dword [r12 + 0x04]
-    and eax, 0xFF   ; masquer pour garder les bits 7:0
-
-    ; Écrire cette valeur dans le registre CONFIG (offse 0x38 de Operationnal Base)
-    mov dword [rbx +0x38], eax
-
-    ; Configurer le pointeur DCBAAP
-    ; DCBAAP est un registre 64 bits à offset 0x30 de Operational Base
-    ; Adresse Physique
-    lea rax, [rel xhci_dcbaa]
-    mov rdi, [rel get_kernel_address_response]
-
-    ;  adresse virtuel - base virtuel + base physique = adresse physique
-    mov rcx, qword [rdi + 0x10]
-    sub rax, rcx
-    mov rdx, qword [rdi + 0x08]
-    add rax, rdx
-
-    mov qword [rbx + 0x30], rax
-
-    PRINT_SERIAL msg_val_config, msg_val_config_len
-    mov eax, dword [rbx + 0x38]
-    PRINT_SERIAL_HEX rax
-
-    PRINT_SERIAL msg_val_dcbaap, msg_val_dcbaap_len
-    mov rax, qword [rbx + 0x30]
-    PRINT_SERIAL_HEX rax
-
-    ; CONFIG DU COMMAND ING (CRCR)
-    lea rax, [rel xhci_cmd_ring]
-    mov rdi, [rel get_kernel_address_response]
-
-    mov rcx, qword [rdi + 0x10]
-    sub rax, rcx
-    mov rdx, qword [rdi + 0x08]
-    add rax, rdx        ; RAX = adresse Physique du Command Ring
-
-    lea rdi, [rel xhci_cmd_ring]
-    mov qword [rdi + 4080], rax
-
-    mov dword [rdi + 4088], 0
-    ; Les 4 derniers octets (offset 12) contiennent le Type et les Flags.
-    ; TRB Type = 6 (Link TRB) -> on décale de 10 bits: (6 << 10) = 0x1800
-    ; Bit Toggle Cycle (TC) = bit 1 (0x02) : Indique au matériel que le cycle bascule ici.
-    mov dword [rdi + 4092], 0x1802
-
-    mov rcx, rax
-    or rcx, 1
-    mov qword [rbx + 0x18], rcx
-
-    PRINT_SERIAL msg_val_crcr, msg_val_crcr_len
-    mov rax, qword [rbx + 0x18]
-    PRINT_SERIAL_HEX rax
-
-    mov eax, dword [r12 + 0x14] ; Lire DBOFF
+    ; Calcul du Doorbell Base
+    mov eax, dword [r12 + XHCI_DBOFF] ; DBOFF
     and eax, 0xFFFFFFFC
     lea r9, [r12 + rax]
     mov qword [rel xhci_doorbell_base], r9
 
-    ; Allocation de l'event ring et de l'ERST
-    mov eax, dword [r12 + 0x18]     ; Lire RTSOFF
+    ; Calcul du Runtime Base
+    mov eax, dword [r12 + XHCI_RTSOFF] ; RTSOFF
     and eax, 0xFFFFFFE0
-    lea r8, [r12 + rax]             ; R8 = Base des runtime registers
-
+    lea r8, [r12 + rax]
     mov qword [rel xhci_runtime_base], r8
 
-    lea r8, [r8 + 0x20]             ; R8 = Base de l'Interrupter 0
+    ; -----------------------------------------------------------------
+    ; Reset du Contrôleur
+    ; -----------------------------------------------------------------
+    mov rdi, rbx
+    call reset_xhci
 
-    lea rax, [rel xhci_event_ring]
-    mov rdi, [rel get_kernel_address_response]
-    mov rcx, qword [rdi + 0x10]
-    sub rax, rcx
-    mov rdx, qword [rdi + 0x08]
-    add rax, rdx                    ; RAX = adresse physique de l'Event ring
-    mov r14, rax
-    mov qword [rel xhci_event_ring_phys], rax
+    test rax, rax
+    jz .init_done
 
-    mov qword [rel command_ring_index], 0
+    ; -----------------------------------------------------------------
+    ; Configuration Globale (CONFIG et DCBAAP)
+    ; -----------------------------------------------------------------
 
-    lea rdi, [rel xhci_erst]
+    ; Configurer MaxSlots (Lire HCSPARAMS1, copier dans CONFIG)
+    mov eax, dword [r12 + XHCI_HCSPARAMS1]
+    and eax, 0xFF               ; Garder unique le nombre max de slots
+    mov dword [rbx + XHCI_CONFIG], eax
 
-    ; Une entrée ERST = 16 octets :
-    ; [0..7]  : Adresse Physique du Segment (R14)
-    ; [8..11] : Taille du segment en nombre de TRB (256)
-    ; [12..15]: Réservé (0)
-    mov qword [rdi + 0], r14
-    mov dword [rdi + 8], 256
-    mov dword [rdi + 12], 0
+    mov eax, dword [rbx + XHCI_CONFIG]
+    LOG_HEX "[xHCI] Read-back CONFIG (MaxSlots) : ", rax
 
-    lea rax, [rel xhci_erst]
-    mov rdi, [rel get_kernel_address_response]
-    mov rcx, qword [rdi + 0x10]
-    sub rax, rcx
-    mov rdx, qword [rdi + 0x08]
-    add rax, rdx                    ; rax = adresse physique de l'ERST
-    mov r15, rax
+    ; Enregistrer le tableau DCBAA
+    lea rax, [rel xhci_dcbaa]
+    VIRT_TO_PHYS rax
+    mov qword [rbx + XHCI_DCBAAP], rax
 
+    mov rax, qword [rbx + XHCI_DCBAAP]
+    LOG_HEX "[xHCI] Read-back DCBAAP (Phys Addr): ", rax
 
-    ; Configurer les registres de l'Interrupter 0
-
-    ; ERSTSZ
-    mov dword [r8 + 0x08], 1
-    ; ERDP
-    mov qword [r8 + 0x18], r14
-    ; ERSTBA
-    mov qword [r8 + 0x10], r15
-    ; IMAN
-    mov eax, dword [r8 + 0x00]
-    or eax, 3       ; Bit 0 (CLear Pendinf) | Bit 1 (Interrupt Enable)
-    mov dword [r8 + 0x00], eax
-    ; IMOD
-    mov dword [r8 + 0x04], 4000
-
-    PRINT_SERIAL msg_val_erdp, msg_val_erdp_len
-    mov rax, qword [r8 + 0x18]
-    PRINT_SERIAL_HEX rax
-
-    PRINT_SERIAL msg_val_erstba, msg_val_erstba_len
-    mov rax, qword [r8 + 0x10]
-    PRINT_SERIAL_HEX rax
+    ; ------------------------------------------------------------------
+    ; Initialisation des Rings
+    ; ------------------------------------------------------------------
+    call init_xhci_command_ring
+    call init_xhci_event_ring
 
 
 .init_done:
     pop r12
     pop rbx
     ret
-
-    ; RBX = Operational Base
+; =====================================================================
+; FONCTION : reset_xhci
+; Rôle : Effectue le reset matériel complet de la puce xHCI
+; Paramètres : RDI = Operational Base Address
+; Retour : RAX = 1 (Succès), 0 (Timeout/Échec)
+; ====================================================================
 reset_xhci:
+    mov rcx, RESET_TIMEOUT      ; Initialiser le compteur de sécurité
+
 .wait_cnr_initial:
-    ; Attendre que le bit CNR (bit 11 de USBSTS) = 0
-    ; USBSTS est à l'offset 0x04 des registres opérationnels (32 bits)
-    mov eax, dword [rbx + 0x04]
-    test eax, 0x800
-    jz .do_reset
+    mov eax, dword [rdi + XHCI_USBSTS]
+    test eax, XHCI_STS_CNR  ; Vérifier si Controller Not Ready
+    jz .do_reset            ; Si prêt, on déclenche le reset
+
     pause
-    jmp .wait_cnr_initial
+    dec rcx
+    jnz .wait_cnr_initial
+    jmp .fail
 
 .do_reset:
-    ; Déclencher le Host Controller Reset (HCRST)
-    ; USBCMD est à l'offset 0x00 des registres opérationnels (32 bits)
-    mov eax, dword [rbx + 0x00]
-    or eax, 0x02
-    mov dword [rbx + 0x00], eax
+    ; Envoyer le signal de Reset
+    mov eax, dword [rdi + XHCI_USBCMD]
+    or eax, XHCI_CMD_HCRST
+    mov dword [rdi + XHCI_USBCMD], eax
 
-    PRINT_SERIAL msg_reset_envoyee, msg_reset_envoyee_len
+    PRINT_INLINE "[xHCI] Reset envoyée au HCRST"
+    mov rcx, RESET_TIMEOUT      ; Réinitialiser le timeout
 
 .wait_reset_done:
     ; Attendre que le contrôleur remmete HCRST à 0
-    mov eax, dword [rbx + 0x00]
-    test eax, 0x02
+    mov eax, dword [rdi + XHCI_USBCMD]
+    test eax, XHCI_CMD_HCRST
     jz .wait_cnr_post_reset
+
     pause
-    jmp .wait_reset_done
+    dec rcx
+    jnz .wait_reset_done
+    jmp .fail
 
 .wait_cnr_post_reset:
-    ; Attendre que le contrôler signale à nouveau qu'il est prêt
-    mov eax, dword [rbx + 0x04]
-    test eax, 0x800
-    jz .done_true
+    mov rcx, RESET_TIMEOUT
+
+.wait_cnr_post_loop:
+    mov eax, dword [rdi + XHCI_USBSTS]
+    test eax, XHCI_STS_CNR
+    jz .success
+
     pause
-    jmp .wait_cnr_post_reset
+    dec rcx
+    jmp .wait_cnr_post_loop
+    jmp .fail
 
-.done_true:
-    PRINT_SERIAL msg_reset_done, msg_reset_done_len
+.success:
+    PRINT_INLINE "[xHCI] Reset effectué, le xHCI est prêt à être configuré"
+    mov rax, 1
+    ret
 
-.done:
+.fail:
+    xor rax, rax
     ret
 

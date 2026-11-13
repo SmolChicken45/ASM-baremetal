@@ -2,24 +2,24 @@
 DEFAULT REL
 
 %include "platform/serial.inc"
+%include "platform/memory.inc"
+%include "platform/xhci.inc"
 
 global xhci_setup_device_context
 global xhci_output_context
 global xhci_input_context
+global xhci_dcbaa
 
 extern current_port_id
 extern current_port_speed
-extern get_kernel_address_response
 
 section .bss
 align 4096
 xhci_input_context: resb 4096   ; 1 page pour l'input context
 xhci_output_context: resb 4096
 xhci_ep0_ring:      resb 4096   ; 1 page pour le Transfer Ring de l'EP0
-
-section .rodata
-    msg_ctx_ok:         db "[xHCI] Context Input, Slot et EP0 configurés en RAM.", 13, 10
-    msg_ctx_ok_len      equ $ - msg_ctx_ok
+align 64
+xhci_dcbaa: resq 256
 
 section .text
 
@@ -46,21 +46,21 @@ xhci_setup_device_context:
     ; on doit ajouter les contextes Slot Context (bit 0) et EP0 (bit 1)
 
     ; Add Context Flags (Offset 0x04)
-    mov dword [rbx + 0x04], 0x03
+    mov dword [rbx + CTX_ADD_FLAGS], (ICS_ADD_SLOT | ICS_ADD_EP0)
 
     ; Offset 0x20 = Slot Context
     ; Décrit le périphérique de façon globale
 
     ; dword 0 (Offset 0x20) : Route String (0), Speed, Multi-TT (0), Context Entries
     mov eax, dword [rel current_port_speed]
-    shl eax, 20         ; La vitesse est aux bits 20-23
-    or eax, (1 << 27)   ; Context Entries (BIts 27-31) = 1 (seul EP0 est actif)
-    mov dword [rbx + 0x20], eax
+    shl eax, SLOT_SPEED_SHIFT         ; La vitesse est aux bits 20-23
+    or eax, (1 << SLOT_ENTRIES_SHIFT)   ; Context Entries (BIts 27-31) = 1 (seul EP0 est actif)
+    mov dword [rbx + CTX_SLOT], eax
 
     ; dword 1 (Offset 0x24) : Max Exit Latency (0), Root Hub Port Number
     mov eax, dword [rel current_port_id]
-    shl eax, 16             ; Le numéro du port racine est aux bits 16-23
-    mov dword [rbx + 0x24], eax
+    shl eax, SLOT_PORT_SHIFT             ; Le numéro du port racine est aux bits 16-23
+    mov dword [rbx + CTX_SLOT_DWORD1], eax
 
     ; Offset 0x40 = Endpoint 0 Context (EP0)
 
@@ -90,27 +90,22 @@ xhci_setup_device_context:
 
 .write_ep0:
     ; Construire le DWORD : Error Count (bit 1-2) = 3, EP Type (bit 3-5) = 4, MAx Packet Size (16-31)
-    mov eax, (3 << 1) | (4 << 3)
+    mov eax, (EP_ERR_COUNT_3 << EP_ERR_COUNT_SHIFT) | (EP_TYPE_CONTROL << EP_TYPE_SHIFT)
     shl edx, 16
     add eax, edx
-    mov dword [rbx + 0x44], eax
+    mov dword [rbx + CTX_EP0_DWORD1], eax
 
     ; Dword 2 et 3 (Offset 0x48 et 0x4C) : TR Dequeue Pointer (Adresse Physique du Transfer Ring)
     ; On doit donner xHCI l'adresse Physique du Transfer RIng qu'on a alloué
     lea rax, [rel xhci_ep0_ring]
-    mov rdi, [rel get_kernel_address_response]
-
-    mov rcx, qword [rdi + 0x10]
-    sub rax, rcx
-    mov rdx, qword [rdi + 0x08]
-    add rax, rdx
+    VIRT_TO_PHYS rax
 
     or rax, 1       ; Activer le bit 0 (DCX - Dequeue Cycle State)
-    mov dword [rbx + 0x48], eax
+    mov dword [rbx + CTX_EP0_TRDP_LO], eax
     shr rax, 32
-    mov dword [rbx + 0x4C], eax
+    mov dword [rbx + CTX_EP0_TRDP_HI], eax
 
-    PRINT_SERIAL msg_ctx_ok, msg_ctx_ok_len
+    PRINT_INLINE "[xHCI] Context Input, Slot et EP0 configurés en RAM."
 
     pop r8
     pop rdx

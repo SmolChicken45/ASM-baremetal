@@ -1,6 +1,10 @@
 [BITS 64]
 DEFAULT REL
 
+
+global boot_init
+global kernel_phys_offset
+
 extern serial_init
 extern init_video
 extern init_audio_system
@@ -11,18 +15,37 @@ extern get_xhci_device
 extern init_xhci
 extern pci_xhci_enable_msi
 extern start_xhci_run
+extern get_kernel_address_response
 
 extern serial_write_byte
 
-section .text
-global boot_init
+section .bss
+    kernel_phys_offset: resq 1
 
+section .text
+
+; ---------------------------------------------------------------------
+; FONCTION : compute_memory_offset
+; Rôle : Calcule l'offset global entre mémoire physique et virtuelle
+; ---------------------------------------------------------------------
+compute_memory_offset:
+    mov rdi, [rel get_kernel_address_response]
+    mov rax, qword [rdi + 0x08]     ; Base Physique
+    sub rax, qword [rdi + 0x10]     ; - Base Virtuelle
+    mov qword [rel kernel_phys_offset], rax
+    ret
+
+; ---------------------------------------------------------------------
+; FONCTION PRINXIPALE : boot_init
+; ---------------------------------------------------------------------
 boot_init:
 
     ; Permet d'avoir le port série en débuggage bas niveau
     call serial_init
     ; La mémoire pour les autres systèmes
     call memory_init
+
+    call compute_memory_offset
     ; Vidéo/Audio 
     call init_video
     call init_audio_system
