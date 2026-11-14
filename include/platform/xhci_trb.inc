@@ -42,3 +42,4 @@
 %define DEV_STATE_WAIT_DESC     3
 %define DEV_STATE_DESC_DONE     4
 %define DEV_STATE_WAIT_CONF9    5
+%define DEV_STATE_WAIT_CONF_FULL 6

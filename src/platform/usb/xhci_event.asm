@@ -21,6 +21,9 @@ extern er_dequeue
 extern xhci_event_ring_mgr
 extern device_desc_buffer
 extern xhci_get_device_descriptor
+extern config_desc_buffer
+extern xhci_get_config_descriptor_9
+extern xhci_get_config_descriptor_full
 
 section .bss
     current_slot_id:        resd 1
@@ -58,14 +61,14 @@ xhci_event_handler:
     ; RAX pointe vers le TRB de l'événement
     mov rbx, rax
 
-    mov eax, dword [rbx + TRB_DWORD3]
-    LOG_HEX "[xHCI] Event TRB Dword 3 (Type/Cycle) : ", rax
+    ; mov eax, dword [rbx + TRB_DWORD3]
+    ; LOG_HEX "[xHCI] Event TRB Dword 3 (Type/Cycle) : ", rax
 
-    mov eax, dword [rbx + TRB_DWORD2]
-    LOG_HEX "[xHCI] Event TRB Dword 2 (Status/Compl): ", rax
+    ; mov eax, dword [rbx + TRB_DWORD2]
+    ; LOG_HEX "[xHCI] Event TRB Dword 2 (Status/Compl): ", rax
 
     mov eax, dword [rbx + TRB_EVENT_CTRL]
-    LOG_HEX "Valeur brute TRB_EVENT_CTRL lue : ", rax
+    ; LOG_HEX "Valeur brute TRB_EVENT_CTRL lue : ", rax
 
 
     ; Isoler le type de TRB
@@ -162,8 +165,15 @@ xhci_event_handler:
 
     ; Vérifier si on attendait le Device Descriptor
     mov eax, dword [rel device_init_state]
+
     cmp eax, DEV_STATE_WAIT_DESC
     je .handle_device_desc_success
+
+    cmp eax, DEV_STATE_WAIT_CONF9
+    je .handle_conf9_success
+
+    cmp eax, DEV_STATE_WAIT_CONF_FULL
+    je .handle_conf_full_success
 
     PRINT_INLINE "[xHCI] Transfère Non-géré est détecté"
     jmp .process_next_event
@@ -188,6 +198,29 @@ xhci_event_handler:
 
     mov dword [rel device_init_state], DEV_STATE_IDLE
 
+    call xhci_get_config_descriptor_9
+
+    jmp .process_next_event
+
+.handle_conf9_success:
+    PRINT_INLINE "[xHCI] En-tête de configuration lu !"
+
+    lea rbx, [rel config_desc_buffer]
+
+    ; Le wTotalLength est sur 2 octets à l'offset 2
+    movzx eax, word [rbx + 2]
+    LOG_HEX "wTotalLength trouvé : ", rax
+
+    mov dword [rel device_init_state], DEV_STATE_IDLE
+    mov r10, rax
+    call xhci_get_config_descriptor_full
+
+    jmp .process_next_event
+
+.handle_conf_full_success:
+    PRINT_INLINE "[xHCI] Arbre de configuration COMPLET lu en RAM !"
+
+    mov dword [rel device_init_state], DEV_STATE_IDLE
     jmp .process_next_event
 
 .transfer_failed:
