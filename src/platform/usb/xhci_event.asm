@@ -24,6 +24,8 @@ extern xhci_get_device_descriptor
 extern config_desc_buffer
 extern xhci_get_config_descriptor_9
 extern xhci_get_config_descriptor_full
+extern xhci_set_configuration
+extern xhci_parse_config
 
 section .bss
     current_slot_id:        resd 1
@@ -175,6 +177,9 @@ xhci_event_handler:
     cmp eax, DEV_STATE_WAIT_CONF_FULL
     je .handle_conf_full_success
 
+    cmp eax, DEV_STATE_WAIT_SET_CONF
+    je .handle_set_conf_success
+
     PRINT_INLINE "[xHCI] Transfère Non-géré est détecté"
     jmp .process_next_event
 
@@ -219,6 +224,16 @@ xhci_event_handler:
 
 .handle_conf_full_success:
     PRINT_INLINE "[xHCI] Arbre de configuration COMPLET lu en RAM !"
+
+    mov dword [rel device_init_state], DEV_STATE_IDLE
+    call xhci_set_configuration
+
+    jmp .process_next_event
+
+.handle_set_conf_success:
+    PRINT_INLINE "[xHCI] SET CONFIGURATION réussi ! Périphérique ACTIF"
+
+    call xhci_parse_config
 
     mov dword [rel device_init_state], DEV_STATE_IDLE
     jmp .process_next_event

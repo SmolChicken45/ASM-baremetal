@@ -9,6 +9,8 @@ DEFAULT REL
 global xhci_get_device_descriptor
 global xhci_get_config_descriptor_9
 global xhci_get_config_descriptor_full
+global xhci_set_configuration
+global xhci_parse_config
 global device_desc_buffer
 global config_desc_buffer
 
@@ -158,4 +160,91 @@ xhci_get_config_descriptor_full:
     mov dword [rel device_init_state], DEV_STATE_WAIT_CONF_FULL
     PRINT_INLINE "[xHCI] Get Config Descriptor Full envoyé !"
 
+    ret
+
+; Active le périphérique en sélectionnant la configuration 1
+xhci_set_configuration:
+    ; Setup Stage
+    lea rdi, [rel ep0_mgr]
+
+    ; Paramètres :
+    ;   bmResquestType = 0x80
+    ;   bRequest =       0x09 (SET_CONF)
+    ;   wValue =         0x0001 (Config 1)
+    ;   wIndex =         0x00
+    ;   wLength =        0x00
+    mov rax, 0x0000000000010900
+    mov r8d, 8      ; Longueur de la requête = 8
+    ; Control : Type = 2, TRT = 0 (No Data), IDT = 1, IOC = 0
+    mov r9d, (2 << 10) | (0 << 16) | (1 << 6)
+    call tr_enqueue
+
+    ; Status Stage
+    xor rax, rax
+    xor r8d, r8d
+    ; Control : Type = 4, DIR = 1 (IN), IOC = 1
+    mov r9d, (4 << 10) | (1 << 16) | (1 << 5)
+    call tr_enqueue
+
+    ; Sonner le Doorbell
+    mov rdx, qword [rel xhci_doorbell_base]
+    mov ecx, dword [rel current_slot_id]
+    mov dword [rdx + rcx * 4], 1
+
+    mov dword [rel device_init_state], DEV_STATE_WAIT_SET_CONF
+    PRINT_INLINE "[xHCI] Set Configuration envoyé !"
+
+    ret
+
+; Parcourt config_desc_buffer pour trouver l'Endpoint Interrupt IN
+xhci_parse_config:
+    lea rbx, [rel config_desc_buffer]
+
+
+    ; Lire la longueur totale (wTotalLenght à l'offset 2)
+    movzx rcx, word [rbx + 2]
+    xor rdx, rdx
+
+.parse_loop:
+    cmp rdx, rcx
+    jge .end_parsing
+
+    movzx rax, byte [rbx + rdx]     ; AL = bLength
+    test al, al
+    jz .nothing   ; AntiBoucle
+
+    cmp byte [rbx + rdx + 1], 0x05                    ; 5 = EndpointDescriptor
+    je .found_endpoint
+
+    add rdx, rax                    ; Sauter au descripteur suivant
+    jmp .parse_loop
+
+.found_endpoint:
+    PRINT_INLINE "[xHCI] Endpoint Descriptor trouvé !"
+
+    ; Lire l'adresse de l'Endpoint
+    movzx eax, byte [rbx + rdx + 2]
+    LOG_HEX "Adresse EP (Bit 7=IN) : ", rax
+
+    ; Lire les attributs (0x03 = Interrupt)
+    movzx eax, byte [rbx + rdx + 3]
+    LOG_HEX "Attributs (3=INT) : ", rax
+
+    ; Lire le Max Packet Size
+    movzx eax, word [rbx + rdx + 4]
+    LOG_HEX "Max Packet Size : ", rax
+
+    ; Lire l'intervalle de polling
+    movzx eax, byte [rbx + rdx + 6]
+    LOG_HEX "Intervalle (ms) : ", rax
+
+    movzx rax, byte [rbx + rdx]
+    add rdx, rax
+    jmp .parse_loop
+
+.nothing:
+    PRINT_INLINE "[xHCI] Obtenu un Descriptor de longueur 0"
+    ret
+.end_parsing:
+    PRINT_INLINE "[xHCI] FIn de l'analyse de la configuration."
     ret
