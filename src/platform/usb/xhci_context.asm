@@ -9,9 +9,11 @@ global xhci_setup_device_context
 global xhci_output_context
 global xhci_input_context
 global xhci_dcbaa
+global ep0_mgr
 
 extern current_port_id
 extern current_port_speed
+extern tr_init
 
 section .bss
 align 4096
@@ -20,6 +22,8 @@ xhci_output_context: resb 4096
 xhci_ep0_ring:      resb 4096   ; 1 page pour le Transfer Ring de l'EP0
 align 64
 xhci_dcbaa: resq 256
+align 8
+ep0_mgr: resb tr_manager_t_size
 
 section .text
 
@@ -32,7 +36,13 @@ xhci_setup_device_context:
     push rdx
     push r8
 
-    ; Nettoyer la page de L'Input COntext
+    ; Initialiser le gestionnaire du TR EP0
+    lea rdi, [rel ep0_mgr]
+    lea rsi, [rel xhci_ep0_ring]
+    mov rdx, 256            ; Capacité (4096 Bytes / 16 = 256 TRBs)
+    call tr_init
+
+    ; Nettoyer la page de L'Input Context
     lea rdi, [rel xhci_input_context]
     xor eax, eax
     mov rcx, 1024
@@ -40,10 +50,6 @@ xhci_setup_device_context:
 
     ; RDI pointe à la fin de la page
     lea rbx, [rel xhci_input_context]
-
-    ; Offset 0x00 = Input Control Context
-    ; Il dit quel sont les contextes valides dans ce bloc
-    ; on doit ajouter les contextes Slot Context (bit 0) et EP0 (bit 1)
 
     ; Add Context Flags (Offset 0x04)
     mov dword [rbx + CTX_ADD_FLAGS], (ICS_ADD_SLOT | ICS_ADD_EP0)
@@ -97,8 +103,7 @@ xhci_setup_device_context:
 
     ; Dword 2 et 3 (Offset 0x48 et 0x4C) : TR Dequeue Pointer (Adresse Physique du Transfer Ring)
     ; On doit donner xHCI l'adresse Physique du Transfer RIng qu'on a alloué
-    lea rax, [rel xhci_ep0_ring]
-    VIRT_TO_PHYS rax
+    mov rax, [rel ep0_mgr + tr_manager_t.base_phys]
 
     or rax, 1       ; Activer le bit 0 (DCX - Dequeue Cycle State)
     mov dword [rbx + CTX_EP0_TRDP_LO], eax

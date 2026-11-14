@@ -7,6 +7,7 @@
 %define TRB_TYPE_LINK           6
 %define TRB_TYPE_ENABLE_SLOT    9
 %define TRB_TYPE_ADDRESS_DEV    11
+%define TRB_TYPE_TRANSFER_EVENT 32
 %define TRB_TYPE_CMD_COMPL      33
 %define TRB_TYPE_PORT_STAT      34
 
@@ -38,3 +39,6 @@
 %define DEV_STATE_IDLE          0
 %define DEV_STATE_WAIT_SLOT     1
 %define DEV_STATE_WAIT_ADDR     2
+%define DEV_STATE_WAIT_DESC     3
+%define DEV_STATE_DESC_DONE     4
+%define DEV_STATE_WAIT_CONF9    5

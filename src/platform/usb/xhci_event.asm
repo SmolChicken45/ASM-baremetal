@@ -19,6 +19,8 @@ extern xhci_send_address_device_cmd
 extern device_init_state
 extern er_dequeue
 extern xhci_event_ring_mgr
+extern device_desc_buffer
+extern xhci_get_device_descriptor
 
 section .bss
     current_slot_id:        resd 1
@@ -40,7 +42,9 @@ xhci_event_handler:
     push r14
     push r15
 
+    xor r14, r14
 .process_next_event:
+
     ; Demander le prochain événement au gestionnaire
     lea rdi, [rel xhci_event_ring_mgr]
     call er_dequeue
@@ -54,8 +58,15 @@ xhci_event_handler:
     ; RAX pointe vers le TRB de l'événement
     mov rbx, rax
 
+    mov eax, dword [rbx + TRB_DWORD3]
+    LOG_HEX "[xHCI] Event TRB Dword 3 (Type/Cycle) : ", rax
+
+    mov eax, dword [rbx + TRB_DWORD2]
+    LOG_HEX "[xHCI] Event TRB Dword 2 (Status/Compl): ", rax
+
     mov eax, dword [rbx + TRB_EVENT_CTRL]
-    ; LOG_HEX "Valeur brute TRB_EVENT_CTRL lue : ", rax
+    LOG_HEX "Valeur brute TRB_EVENT_CTRL lue : ", rax
+
 
     ; Isoler le type de TRB
     mov edx, eax
@@ -67,6 +78,9 @@ xhci_event_handler:
 
     cmp edx, TRB_TYPE_CMD_COMPL
     je .is_cmd_completion
+
+    cmp edx, TRB_TYPE_TRANSFER_EVENT
+    je .is_transfer_event
 
     PRINT_INLINE "[xHCI] Nouvel evenement detecte !"
     jmp .process_next_event
@@ -136,6 +150,48 @@ xhci_event_handler:
 
     mov dword [rel device_init_state], DEV_STATE_IDLE
 
+    call xhci_get_device_descriptor
+
+    jmp .process_next_event
+.is_transfer_event:
+    ; Vérifier que le transfert a réussi
+    mov ecx, dword [rbx + TRB_EVENT_STATUS]
+    shr ecx, TRB_COMPL_CODE_SHIFT
+    cmp ecx, COMPL_SUCCESS
+    jne .transfer_failed
+
+    ; Vérifier si on attendait le Device Descriptor
+    mov eax, dword [rel device_init_state]
+    cmp eax, DEV_STATE_WAIT_DESC
+    je .handle_device_desc_success
+
+    PRINT_INLINE "[xHCI] Transfère Non-géré est détecté"
+    jmp .process_next_event
+
+.handle_device_desc_success:
+    PRINT_INLINE "[xHCI] Descripteur de périphérique lu avec succès !"
+
+    ; Charger l'adresse du buffer où le xHCI a écrit la réponse
+    lea rbx, [rel device_desc_buffer]
+
+    ; Vendor ID (2 bytes -> Offset 8)
+    movzx eax, word [rbx + 8]
+    LOG_HEX "Vendor ID : ", rax
+
+    ; Product ID (2 bytes -> offset 10)
+    movzx eax, word [rbx + 10]
+    LOG_HEX "Product ID : ", rax
+
+    ; Lire le Max Packet Size (offset 7)
+    movzx eax, byte [rbx + 7]
+    LOG_HEX "Max Packet Size : ", rax
+
+    mov dword [rel device_init_state], DEV_STATE_IDLE
+
+    jmp .process_next_event
+
+.transfer_failed:
+    PRINT_INLINE "[xHCI] Erreur lors d'un transfert USB !"
     jmp .process_next_event
 
 .cmd_failed:
