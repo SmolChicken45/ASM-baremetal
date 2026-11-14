@@ -7,6 +7,7 @@ DEFAULT REL
 
 global xhci_send_enable_slot_cmd
 global xhci_send_address_device_cmd
+global xhci_send_configure_endpoint_cmd
 global device_init_state
 
 extern xhci_doorbell_base   ; Pointeur pour avertir une commande
@@ -73,4 +74,30 @@ xhci_send_address_device_cmd:
     mov dword [rdx + 0x00], 0
 
     pop rdi
+    ret
+
+xhci_send_configure_endpoint_cmd:
+    lea rdi, [rel xhci_cmd_ring_mgr]
+    ; Pointeur physique vers l'Input Context
+    lea rax, [rel xhci_input_context]
+    VIRT_TO_PHYS rax
+
+    xor r8d, r8d
+
+    ; TRB de Commande Type 12 (Configure Endpoint)
+    ; DWORD 0 & 1 : adresse physique (rax)
+    ; DWORD 3 : Slot ID (bits 24-31) | Type (bits 10-15)
+    mov r9d, dword [rel current_slot_id]
+    shl r9d, 24
+    or r9d, (12 << 10)      ; TRB Type 12
+
+    call tr_enqueue
+
+    ; Sonner le Doorbell du Host COntroller
+    mov rdx, qword [rel xhci_doorbell_base]
+    mov dword [rdx], 0
+
+    mov dword [rel device_init_state], DEV_STATE_WAIT_CONF_EP
+    PRINT_INLINE "[xHCI] Configure Endpoint Command envoyée !"
+
     ret

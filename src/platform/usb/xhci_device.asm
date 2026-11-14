@@ -13,19 +13,34 @@ global xhci_set_configuration
 global xhci_parse_config
 global device_desc_buffer
 global config_desc_buffer
+global xhci_configure_ep1_in
+global xhci_submit_mouse_read
+global mouse_data_buffer
 
 ; IMPORTATIONS
 extern tr_enqueue
+extern tr_init
 extern ep0_mgr
 extern current_slot_id
 extern xhci_doorbell_base
 extern device_init_state
+extern xhci_input_context
+extern xhci_send_configure_endpoint_cmd
+extern xhci_output_context
 
 ; Données
 section .bss
+align 4096
+xhci_ep1_in_ring:      resb 4096
 align 64
 device_desc_buffer: resb 64 ; Le buffer où le descripteur sera copié par le xHCI
 config_desc_buffer: resb 256
+align 8
+ep1_in_mgr: resb tr_manager_t_size
+align 8
+mouse_data_buffer: resb 8
+
+
 section .text
 
 ;Envoie une requête "Get Descriptor (Device)" sur l'EP0
@@ -247,4 +262,84 @@ xhci_parse_config:
     ret
 .end_parsing:
     PRINT_INLINE "[xHCI] FIn de l'analyse de la configuration."
+    ret
+
+
+xhci_configure_ep1_in:
+    ; Initialiser le Transfer Ring de l'EP1 IN
+    lea rdi, [rel ep1_in_mgr]
+    lea rsi, [rel xhci_ep1_in_ring]
+    mov rdx, 256
+    call tr_init
+
+    ; Préparer le Input Context
+;    lea rsi, [rel xhci_output_context]
+;    lea rdi, [rel xhci_input_context]
+;    add rdi, 0x20
+;    mov rcx, 16
+;.copy_context:
+;    mov eax, dword [rsi]
+;    mov dword [rdi], eax
+;    add rsi, 4
+;    add rdi, 4
+;    loop .copy_context
+
+    lea rbx, [rel xhci_input_context]
+
+    ; Drop Context Flags = 0
+    mov dword [rbx + 0x00], 0
+    ; Add Context Flags = Bit 0 (Slot) | Bit 3 (EP1 IN)
+    mov dword [rbx + 0x04], (1 << 0) | (1 << 3)
+
+    ;Slot Context
+    ; Le matériel exige que "Context Entries" idique le DCI le plus élevé actif
+    ; On doit remplacer l'ancien '1' par '3' (Bits 27-31)
+    mov eax, dword [rbx + 0x20]
+    and eax, 0x07FFFFFF ; Effacer les anciens Context Entries
+    or eax, (3 << 27)   ; Insérer 3
+    mov dword [rbx + 0x20], eax
+
+    ; EP1 IN Context (Offset 0x80)
+    ; DWORD 1  : Error COutn (3), EP Type (7 = Interrupt IN), Max Packet (8)
+    mov eax, (3 << 1) | (7 << 3) | (8 << 16)
+    mov dword [rbx + 0x84], eax
+
+    ; DWORD 2 & 3: TRDP (Pointeur Physique du Transfer RIng)
+    mov rax, [rel ep1_in_mgr + tr_manager_t.base_phys]
+    or rax, 1   ; Activer le bit DCS
+    mov dword [rbx + 0x88], eax
+    shr rax, 32
+    mov dword [rbx + 0x8C], eax
+
+    ; DWORD 4 : Average TRB Length (8) et Max ESIT Payload (8)
+    ; Requis par le xHCI pour les Endpoints de type Interrupt
+    mov eax, 8 | (8 << 16)
+    mov dword [rbx + 0x90], eax
+
+    ; Envoyer la commande au contrôleur
+    call xhci_send_configure_endpoint_cmd
+
+    ret
+
+xhci_submit_mouse_read:
+    lea rdi, [rel ep1_in_mgr]
+
+    ; DWORD 0 & 1 Adresse physique du buffer
+    lea rax, [rel mouse_data_buffer]
+    VIRT_TO_PHYS rax
+
+    ; DWORD 2 : Longueur du transfert (8 octets)
+    mov r8d, 8
+
+    ; DWORD 3 : TRB Type = 1 | IOC
+    mov r9d, (1 << 10) | (1 << 5)
+
+    call tr_enqueue
+
+    ; Sonner le doorbell
+    mov rdx, qword [rel xhci_doorbell_base]
+    mov ecx, dword [rel current_slot_id]
+    mov dword [rdx + rcx * 4], 3
+
+    PRINT_INLINE "[xHCI] Demande de lecture envoyée à la souris !"
     ret

@@ -26,6 +26,9 @@ extern xhci_get_config_descriptor_9
 extern xhci_get_config_descriptor_full
 extern xhci_set_configuration
 extern xhci_parse_config
+extern xhci_configure_ep1_in
+extern xhci_submit_mouse_read
+extern mouse_data_buffer
 
 section .bss
     current_slot_id:        resd 1
@@ -116,6 +119,9 @@ xhci_event_handler:
     cmp eax, DEV_STATE_WAIT_ADDR
     je .handle_address_device_success
 
+    cmp eax, DEV_STATE_WAIT_CONF_EP
+    je .handle_configure_ep_success
+
     jmp .process_next_event
 
 .handle_enable_slot_success:
@@ -158,13 +164,30 @@ xhci_event_handler:
     call xhci_get_device_descriptor
 
     jmp .process_next_event
+
+.handle_configure_ep_success:
+    PRINT_INLINE "[xHCI] Endpoint 1 Configuré !"
+
+    mov dword [rel device_init_state], DEV_STATE_IDLE
+
+    call xhci_submit_mouse_read
+
+    jmp .process_next_event
+
 .is_transfer_event:
     ; Vérifier que le transfert a réussi
     mov ecx, dword [rbx + TRB_EVENT_STATUS]
     shr ecx, TRB_COMPL_CODE_SHIFT
-    cmp ecx, COMPL_SUCCESS
-    jne .transfer_failed
 
+    LOG_HEX "[DEBUG] Transfer Completion Code : ", rcx
+
+    cmp ecx, COMPL_SUCCESS
+    je .transfer_not_failed
+    cmp ecx, 0x0D
+    je .mouse_read_success
+    jmp .transfer_failed
+
+.transfer_not_failed:
     ; Vérifier si on attendait le Device Descriptor
     mov eax, dword [rel device_init_state]
 
@@ -181,6 +204,21 @@ xhci_event_handler:
     je .handle_set_conf_success
 
     PRINT_INLINE "[xHCI] Transfère Non-géré est détecté"
+    jmp .process_next_event
+
+.mouse_read_success:
+    PRINT_INLINE "[xHCI] Mouvement de souris detecté"
+
+    lea rdi, [rel mouse_data_buffer]
+    movzx eax, byte [rdi + 0]
+    LOG_HEX "Boutons : ", rax
+    movzx eax, byte [rdi + 1]
+    LOG_HEX "Axe X : ", rax
+    movzx eax, byte [rdi + 2]
+    LOG_HEX "Axe Y : ", rax
+
+    call xhci_submit_mouse_read
+
     jmp .process_next_event
 
 .handle_device_desc_success:
@@ -235,7 +273,8 @@ xhci_event_handler:
 
     call xhci_parse_config
 
-    mov dword [rel device_init_state], DEV_STATE_IDLE
+    call xhci_configure_ep1_in
+
     jmp .process_next_event
 
 .transfer_failed:
