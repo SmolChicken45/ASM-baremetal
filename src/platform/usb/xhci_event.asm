@@ -17,15 +17,10 @@ extern xhci_output_context
 extern xhci_dcbaa
 extern xhci_send_address_device_cmd
 extern device_init_state
-
-
-
-section .data
-
-    event_ccs:              db 1
+extern er_dequeue
+extern xhci_event_ring_mgr
 
 section .bss
-    event_ring_index:       resq 1
     current_slot_id:        resd 1
 
 section .text
@@ -46,19 +41,21 @@ xhci_event_handler:
     push r15
 
 .process_next_event:
-    ; TRB actuel
-    lea rbx, [rel xhci_event_ring]
-    mov r12, qword [rel event_ring_index]
-    add rbx, r12
+    ; Demander le prochain événement au gestionnaire
+    lea rdi, [rel xhci_event_ring_mgr]
+    call er_dequeue
+
+    test rax, rax
+    jz .no_more_events
+
+    ; Suavegarder la nouvelle adresse physique pour l'ERDP
+    mov r14, rdx
+
+    ; RAX pointe vers le TRB de l'événement
+    mov rbx, rax
 
     mov eax, dword [rbx + TRB_EVENT_CTRL]
-    LOG_HEX "Valeur brute TRB_EVENT_CTRL lue : ", rax
-    ; Vérifier le Cycle Bit (bit 0)
-    mov cl, byte [rel event_ccs]
-    mov edx, eax
-    and edx, 1
-    cmp dl, cl
-    jne .no_more_events
+    ; LOG_HEX "Valeur brute TRB_EVENT_CTRL lue : ", rax
 
     ; Isoler le type de TRB
     mov edx, eax
@@ -72,7 +69,7 @@ xhci_event_handler:
     je .is_cmd_completion
 
     PRINT_INLINE "[xHCI] Nouvel evenement detecte !"
-    jmp .continue_event
+    jmp .process_next_event
 
 .is_port_change:
 
@@ -84,7 +81,7 @@ xhci_event_handler:
 
     call xhci_handle_port_change
 
-    jmp .continue_event
+    jmp .process_next_event
 
 .is_cmd_completion:
 
@@ -100,7 +97,7 @@ xhci_event_handler:
     cmp eax, DEV_STATE_WAIT_ADDR
     je .handle_address_device_success
 
-    jmp .continue_event
+    jmp .process_next_event
 
 .handle_enable_slot_success:
     mov ecx, dword [rbx + TRB_EVENT_CTRL]   ; Lire le dword 3
@@ -123,7 +120,7 @@ xhci_event_handler:
 
     call xhci_send_address_device_cmd
 
-    jmp .continue_event
+    jmp .process_next_event
 
 .handle_address_device_success:
 
@@ -139,33 +136,31 @@ xhci_event_handler:
 
     mov dword [rel device_init_state], DEV_STATE_IDLE
 
-    jmp .continue_event
+    jmp .process_next_event
 
 .cmd_failed:
     PRINT_INLINE "[xHCI] Commande terminée avec une faute"
-
-.continue_event:
-
-    add r12, 16
-    cmp r12, 4096
-    jl .save_index
-
-    xor r12, r12
-    xor byte [rel event_ccs], 1
-
-.save_index:
-    mov qword [rel event_ring_index], r12
     jmp .process_next_event
 
 .no_more_events:
+    ; R14 contient l'adresse physique renvoyé par le dernier appel réussi à er_dequeue
+    ; Si R14 est à 0, on doit récuperer l'adresse actuelle
+    test r14, r14
+    jnz .update_erdp
 
+    ; Si l'interruption a été déclenchée mais qu'il n'y avait rien
+    ; on relit simplement le pointeur physique actuel depuis le manager
+    lea rdi, [rel xhci_event_ring_mgr]
+    mov r14, [rdi + er_manager_t.dequeue_phys]
+
+
+.update_erdp:
+    ; Écrire le pointeur de retour dans le matériel
     mov r13, qword [rel xhci_runtime_base]
-    mov rax, qword [rel xhci_event_ring_phys]
-    add rax, r12
 
-    or rax, 8   ; Activer le bit EHB (Event Handler Busy)
+    or r14, (1 << 3)   ; Activer le bit EHB (Event Handler Busy)
 
-    mov qword [r13 + XHCI_IR0_BASE + XHCI_ERDP], rax
+    mov qword [r13 + XHCI_IR0_BASE + XHCI_ERDP], r14
 
     mov rbx, 0xFFFF8000FEE000B0
     mov eax, 0
