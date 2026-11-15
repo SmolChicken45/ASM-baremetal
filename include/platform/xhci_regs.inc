@@ -30,6 +30,7 @@
 %define XHCI_ERSTSZ         0x08
 %define XHCI_ERSTBA         0x10
 %define XHCI_ERDP           0x18
+%define XHCI_ERDP_EHB       (1 << 3); Event Handler Busy
 
 ; Port Status and Control (PORTSC)
 %define XHCI_PORTSC_CCS (1 << 0)    ; Current Connect Status

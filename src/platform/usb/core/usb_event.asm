@@ -169,7 +169,7 @@ core_usb_handle_transfer_completion:
     lea rbx, [rel config_desc_buffer]
 
     ; Le wTotalLength est sur 2 octets à l'offset 2
-    movzx eax, word [rbx + 2]
+    movzx eax, word [rbx + USB_DESC_CFG_TOTALLEN_OFS]
     LOG_HEX "wTotalLength trouvé : ", rax
 
     mov dword [rel device_init_state], DEV_STATE_WAIT_CONF_FULL

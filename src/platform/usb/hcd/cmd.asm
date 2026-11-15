@@ -61,8 +61,8 @@ hcd_cmd_disable_slot:
     xor r8d, r8d        ; Status = 0
     ; TRB Type 10 (Disable Slot) | Slot ID
     mov r9d, dword [rel current_slot_id]
-    shl r9d, 24
-    or r9d, (10 << 10)
+    shl r9d, TRB_SLOT_ID_SHIFT
+    or r9d, (TRB_TYPE_DISABLE_SLOT << TRB_TYPE_SHIFT)
 
     call hcd_tr_enqueue
 
@@ -122,8 +122,8 @@ hcd_cmd_configure_endpoint:
     ; DWORD 0 & 1 : adresse physique (rax)
     ; DWORD 3 : Slot ID (bits 24-31) | Type (bits 10-15)
     mov r9d, dword [rel current_slot_id]
-    shl r9d, 24
-    or r9d, (12 << 10)      ; TRB Type 12
+    shl r9d, TRB_SLOT_ID_SHIFT
+    or r9d, (TRB_TYPE_CONFIG_EP << TRB_TYPE_SHIFT)      ; TRB Type 12
 
     call hcd_tr_enqueue
 

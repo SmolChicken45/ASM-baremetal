@@ -92,22 +92,22 @@ core_usb_setup_device_context:
     ; SI HS c'est 64
 
     mov ecx, dword [rel current_port_speed]
-    cmp ecx, 3
+    cmp ecx, XHCI_SPEED_HIGH
     je .set_hs_packet
 
-    cmp ecx, 4
+    cmp ecx, XHCI_SPEED_SUPER
     je .set_ss_packet
 
 .set_fs_packet:
-    mov edx, 8
+    mov edx, USB_EP0_MAX_FS_LS
     jmp .write_ep0
 
 .set_hs_packet:
-    mov edx, 64
+    mov edx, USB_EP0_MAX_HS
     jmp .write_ep0
 
 .set_ss_packet:
-    mov edx, 512
+    mov edx, USB_EP0_MAX_SS
 
 .write_ep0:
     ; Construire le DWORD : Error Count (bit 1-2) = 3, EP Type (bit 3-5) = 4, MAx Packet Size (16-31)
@@ -119,7 +119,7 @@ core_usb_setup_device_context:
     ; Dword 2 et 3 (Offset 0x48 et 0x4C) : TR Dequeue Pointer (Adresse Physique du Transfer Ring)
     ; On doit donner xHCI l'adresse Physique du Transfer RIng qu'on a alloué
     mov rax, [rel core_usb_ep0_mgr + tr_manager_t.base_phys]
-    or rax, 1       ; Activer le bit 0 (DCX - Dequeue Cycle State)
+    or rax, CTX_EP_TRDP_DCS_BIT      ; Activer le bit 0 (DCX - Dequeue Cycle State)
 
     mov dword [rbx + CTX_EP0_TRDP_LO], eax
     shr rax, 32

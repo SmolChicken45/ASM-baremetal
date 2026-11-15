@@ -4,15 +4,27 @@
 
 ; TRB Types et Bits
 %define TRB_TYPE_NORMAL         1
+%define TRB_TYPE_SETUP_STAGE    2
+%define TRB_TYPE_DATA_STAGE     3
+%define TRB_TYPE_STATUS_STAGE   4
 %define TRB_TYPE_LINK           6
 %define TRB_TYPE_ENABLE_SLOT    9
+%define TRB_TYPE_DISABLE_SLOT   10
 %define TRB_TYPE_ADDRESS_DEV    11
+%define TRB_TYPE_CONFIG_EP      12
 %define TRB_TYPE_TRANSFER_EVENT 32
 %define TRB_TYPE_CMD_COMPL      33
 %define TRB_TYPE_PORT_STAT      34
 
+; TRB Control Bits (DWORD 3)
+%define TRB_CTRL_IOC_BIT        (1 << 5)    ; Interrupt On Completion
+%define TRB_CTRL_IDT_BIT        (1 << 6)    ; Immediate Data
+%define TRB_CTRL_DIR_IN_BIT     (1 << 16)   ; Direction IN (Data Stage & Status)
+%define TRB_CTRL_DIR_OUT_BIT    (0 << 16)   ; Direction OUT
+
 ; TRB Bit Shifts (DWORD 3)
 %define TRB_TYPE_SHIFT          10
+%define TRB_SETUP_TRT_SHIFT     16
 %define TRB_SLOT_ID_SHIFT       24
 
 %define TRB_TC_BIT      (1 << 1)    ; Toggle Cycle

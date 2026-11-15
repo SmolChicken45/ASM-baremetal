@@ -12,6 +12,10 @@
 %define CTX_EP0_TRDP_LO     0x48    ;
 %define CTX_EP0_TRDP_HI     0x4C    ;
 
+
+; Bits pour Context TR Dequeu Pointer
+%define CTX_EP_TRDP_DCS_BIT (1 << 0)
+
 ; Valeurs et Shifts pour Input Control Context
 %define ICS_ADD_SLOT        (1 << 0)
 %define ICS_ADD_EP0         (1 << 1)

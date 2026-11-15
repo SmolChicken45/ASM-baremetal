@@ -51,7 +51,7 @@ hcd_event_handler:
 
     mov r13, qword [rel runtime_base]
     mov eax, dword [r13 + XHCI_IR0_BASE + XHCI_IMAN]
-    or eax, 1 ; Le bit 0 est IP
+    or eax, XHCI_IMAN_IP ; Le bit 0 est IP
     mov dword [r13 + XHCI_IR0_BASE + XHCI_IMAN], eax
     xor r14, r14    ; R14 gardera la trace de la dernière adresse ERDP écrite
 
@@ -178,7 +178,7 @@ hcd_event_handler:
     ; Écrire le pointeur de retour dans le matériel
     mov r13, qword [rel runtime_base]
 
-    or r14, (1 << 3)   ; Activer le bit EHB (Event Handler Busy)
+    or r14, XHCI_ERDP_EHB    ; Activer le bit EHB (Event Handler Busy)
 
     mov qword [r13 + XHCI_IR0_BASE + XHCI_ERDP], r14
 
