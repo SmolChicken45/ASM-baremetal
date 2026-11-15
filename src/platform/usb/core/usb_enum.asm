@@ -24,7 +24,6 @@ extern hcd_tr_enqueue
 extern core_usb_ep0_mgr
 extern current_slot_id
 extern doorbell_base
-extern device_init_state
 
 
 ; ---------------------------------------------------------------------------
@@ -82,9 +81,6 @@ core_usb_get_device_desc:
     mov ecx, dword [rel current_slot_id]
     mov dword [rdx + rcx * 4], 1
 
-    ; Mettre à jour l'état de la machine à états de l'init USB
-    mov dword [rel device_init_state], DEV_STATE_WAIT_DESC
-    PRINT_INLINE "[xHCI] Get Device Descriptor envoyé !"
     ret
 
 ; -----------------------------------------------------------------------------
@@ -125,9 +121,6 @@ core_usb_get_config_desc_9:
     mov ecx, dword [rel current_slot_id]
     mov dword [rdx + rcx * 4], 1
 
-    mov dword [rel device_init_state], DEV_STATE_WAIT_CONF9
-    PRINT_INLINE "[xHCI] Get Config Descriptor (9 Bytes) envoyé !"
-
     ret
 
 ; -----------------------------------------------------------------------------
@@ -153,9 +146,16 @@ core_usb_get_config_desc_full:
     mov r9d, (2 << 10) | (3 << 16) | (1 << 6)
     call hcd_tr_enqueue
 
+
+
     ; Data Stage
     lea rax, [rel config_desc_buffer]
+
+    LOG_HEX "[DEBUG] Virtual Addr device_desc_buffer: ", rax
+
     VIRT_TO_PHYS rax
+
+    LOG_HEX "[DEBUG] Physical Addr sent to xHCI: ", rax
 
     pop r10
     mov r8d, r10d                   ; Transfer Length
@@ -172,10 +172,6 @@ core_usb_get_config_desc_full:
     mov rdx, qword [rel doorbell_base]
     mov ecx, dword [rel current_slot_id]
     mov dword [rdx + rcx * 4], 1
-
-    ; Mettre à jour l'état
-    mov dword [rel device_init_state], DEV_STATE_WAIT_CONF_FULL
-    PRINT_INLINE "[xHCI] Get Config Descriptor Full envoyé !"
 
     ret
 
@@ -211,9 +207,6 @@ core_usb_set_config:
     mov ecx, dword [rel current_slot_id]
     mov dword [rdx + rcx * 4], 1
 
-    mov dword [rel device_init_state], DEV_STATE_WAIT_SET_CONF
-    PRINT_INLINE "[xHCI] Set Configuration envoyé !"
-
     ret
 
 ; -----------------------------------------------------------------------------
@@ -240,7 +233,7 @@ core_usb_parse_config:
     jmp .parse_loop
 
 .found_endpoint:
-    PRINT_INLINE "[xHCI] Endpoint Descriptor trouvé !"
+    PRINT_INLINE "[USB Core] Endpoint Descriptor trouvé !"
 
     ; Lire l'adresse de l'Endpoint
     movzx eax, byte [rbx + rdx + 2]
@@ -263,8 +256,8 @@ core_usb_parse_config:
     jmp .parse_loop
 
 .invalid_desc:
-    PRINT_INLINE "[xHCI] Obtenu un Descriptor de longueur 0"
+    PRINT_INLINE "[USB Core] Obtenu un Descriptor de longueur 0"
     ret
 .end_parsing:
-    PRINT_INLINE "[xHCI] FIn de l'analyse de la configuration."
+    PRINT_INLINE "[USB Core] Fin de l'analyse de la configuration."
     ret

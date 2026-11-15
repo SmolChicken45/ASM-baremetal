@@ -37,6 +37,7 @@ hcd_event_handler:
     push rbx
     push rcx
     push rdx
+    push rsi
     push rdi
     push r8
     push r9
@@ -47,6 +48,11 @@ hcd_event_handler:
     push r14
     push r15
 
+
+    mov r13, qword [rel runtime_base]
+    mov eax, dword [r13 + XHCI_IR0_BASE + XHCI_IMAN]
+    or eax, 1 ; Le bit 0 est IP
+    mov dword [r13 + XHCI_IR0_BASE + XHCI_IMAN], eax
     xor r14, r14    ; R14 gardera la trace de la dernière adresse ERDP écrite
 
 .process_next_event:
@@ -191,6 +197,7 @@ hcd_event_handler:
     pop r9
     pop r8
     pop rdi
+    pop rsi
     pop rdx
     pop rcx
     pop rbx

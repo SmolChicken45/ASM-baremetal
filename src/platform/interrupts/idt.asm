@@ -4,6 +4,7 @@ DEFAULT REL
 extern keyboard_handler
 extern timer_handler
 extern hcd_event_handler
+extern page_fault_handler
 
 global init_idt
 
@@ -112,6 +113,13 @@ init_idt:
     ; --------------------------------------
     ; ÉTAPE 2 : ENREGISTREMENT DES HANDLERS
     ; --------------------------------------
+    mov rdi, 0x0E
+    lea rsi, [rel page_fault_handler]
+    call set_idt_entry
+
+    mov rdi, 0x0D
+    lea rsi, [rel page_fault_handler]
+    call set_idt_entry
 
     mov rdi, 0x21    ; 0x20 (base du PIC) + 1 (IRQ1)
     lea rsi, [rel keyboard_handler]

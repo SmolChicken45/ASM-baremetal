@@ -1,5 +1,7 @@
 [BITS 64]
 
+%include "platform/serial.inc"
+
 extern get_framebuffer_response
 
 section .bss
@@ -32,7 +34,9 @@ init_video:
 
     mov rax, [rbx + 0]    ; address
     mov [SCR_address], rax
-    
+
+    LOG_HEX "Adresse Obtenue de Limine 'framebuffer_response' -> + 16 'Écrans' -> +0 'Premier Écran' -> +0 'address'", rax
+
     mov rax, [rbx + 8]    ; width
     mov [SCR_width], rax
 

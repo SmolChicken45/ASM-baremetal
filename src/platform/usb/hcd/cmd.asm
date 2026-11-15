@@ -9,6 +9,7 @@ DEFAULT REL
 ; EXPORTATIONS
 ; =======================================================================
 global hcd_cmd_enable_slot
+global hcd_cmd_disable_slot
 global hcd_cmd_address_device
 global hcd_cmd_configure_endpoint
 
@@ -23,7 +24,6 @@ extern hcd_tr_enqueue
 ; Ces variables appartiennet à la couche Core
 extern core_usb_input_context
 extern current_slot_id
-extern device_init_state
 
 
 extern xhci_op_base
@@ -33,7 +33,6 @@ section .text
 ; =======================================================================
 ; hcd_cmd_enable_slot ; Demande un nouvea Slot ID au xHCI
 ; =======================================================================
-
 hcd_cmd_enable_slot:
     push rdi
 
@@ -45,11 +44,31 @@ hcd_cmd_enable_slot:
     call hcd_tr_enqueue
 
     ; Mettre à jour l'état et sonner la Doorbell 0
-    mov dword [rel device_init_state], DEV_STATE_WAIT_SLOT
     mov rdx, qword [rel doorbell_base]
     mov dword [rdx + 0x00], 0
 
-    PRINT_INLINE "[xHCI] Commande ENABLE SLOT envoyée. En attente de l'Event..."
+    pop rdi
+    ret
+
+; =======================================================================
+; hcd_cmd_disable_slot ; Désactive un Slot au niveau matériel
+; =======================================================================
+hcd_cmd_disable_slot:
+    push rdi
+
+    lea rdi, [rel cmd_ring_mgr]
+    xor rax, rax        ; Parameter = 0
+    xor r8d, r8d        ; Status = 0
+    ; TRB Type 10 (Disable Slot) | Slot ID
+    mov r9d, dword [rel current_slot_id]
+    shl r9d, 24
+    or r9d, (10 << 10)
+
+    call hcd_tr_enqueue
+
+    ; Sonner le Doorbell
+    mov rdx, qword [rel doorbell_base]
+    mov dword [rdx], 0
 
     pop rdi
     ret
@@ -80,7 +99,6 @@ hcd_cmd_address_device:
     call hcd_tr_enqueue
 
     ; Mettre à jour l'état et sonner la Doorbell 0
-    mov dword [rel device_init_state], DEV_STATE_WAIT_ADDR
     mov rdx, qword [rel doorbell_base]
     mov dword [rdx + 0x00], 0
 
@@ -109,11 +127,8 @@ hcd_cmd_configure_endpoint:
 
     call hcd_tr_enqueue
 
-    ; Sonner le Doorbell du Host COntroller
+    ; Sonner le Doorbell du Host Controller
     mov rdx, qword [rel doorbell_base]
     mov dword [rdx], 0
-
-    mov dword [rel device_init_state], DEV_STATE_WAIT_CONF_EP
-    PRINT_INLINE "[xHCI] Configure Endpoint Command envoyée !"
 
     ret

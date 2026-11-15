@@ -18,6 +18,8 @@ global current_port_speed
 ; ================================================================
 extern op_base                          ; hcd/init.asm
 extern hcd_cmd_enable_slot              ; hcd/cmd.asm
+extern hcd_cmd_disable_slot             ; hcd/cmd.asm
+extern device_init_state                ; core/event.asm
 
 section .bss
 current_port_id:        resd 1
@@ -91,6 +93,8 @@ core_usb_handle_port_change:
     LOG_HEX "[USB Hub] Vitesse du port (1=FS, 2=LS, 3=HS, 4=SS) : ", rax
 
     ; Demander un Slot ID pour le nouveau périphérique
+    mov dword [rel device_init_state], DEV_STATE_WAIT_SLOT
+    PRINT_INLINE "[USB Hub] Demande de Slot pour le device..."
     call hcd_cmd_enable_slot
 
     jmp .done
@@ -98,7 +102,8 @@ core_usb_handle_port_change:
 .device_unplugged:
     PRINT_INLINE "[USB Hub] PORT : Périphérique DÉCONNECTÉ !"
 
-    ; TODO Détruire les structures mémoire de la clé USB
+    PRINT_INLINE "[USB Hub] Demande de désactiver Slot du device..."
+    call hcd_cmd_disable_slot
     ; Acquitter seulement CSC
     mov ecx, dword [rbx]
     and ecx, XHCI_PORTSC_MASK

@@ -1,6 +1,7 @@
 [BITS 64]
 DEFAULT REL
 
+%include "platform/serial.inc"
 
 global boot_init
 global kernel_phys_offset
@@ -35,6 +36,7 @@ compute_memory_offset:
     mov rax, qword [rdi + 0x08]     ; Base Physique
     sub rax, qword [rdi + 0x10]     ; - Base Virtuelle
     mov qword [rel kernel_phys_offset], rax
+    LOG_HEX "Kernel Physical Offset : ", rax
     ret
 
 ; ---------------------------------------------------------------------

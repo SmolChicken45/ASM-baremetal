@@ -77,6 +77,10 @@ core_usb_handle_cmd_completion:
     mov ecx, dword [rel current_slot_id]
     mov qword [rbx + rcx * 8], rax
 
+
+    mov dword [rel device_init_state], DEV_STATE_WAIT_ADDR
+    PRINT_INLINE "[USB Core] Demande du Address device..."
+
     ; Lancer la commande matérielle Address Device
     call hcd_cmd_address_device
     ret
@@ -91,8 +95,10 @@ core_usb_handle_cmd_completion:
     mov eax, dword [rbx + 0x0C]
     and eax, 0xFF
 
-    LOG_HEX "[USB Core] Address device réussi !, Adresse USB : ", rax
-    mov dword [rel device_init_state], DEV_STATE_IDLE
+    LOG_HEX "[USB Core] Adresse USB : ", rax
+
+    mov dword [rel device_init_state], DEV_STATE_WAIT_DESC
+    PRINT_INLINE "[USB Core] Demande du Device Descriptor..."
 
     call core_usb_get_device_desc
     ret
@@ -145,15 +151,16 @@ core_usb_handle_transfer_completion:
 
     ; Vendor ID (2 bytes -> Offset 8)
     movzx eax, word [rbx + 8]
-    LOG_HEX "Vendor ID : ", rax
+    LOG_HEX "   Vendor ID : ", rax
     ; Product ID (2 bytes -> offset 10)
     movzx eax, word [rbx + 10]
-    LOG_HEX "Product ID : ", rax
+    LOG_HEX "   Product ID : ", rax
     ; Lire le Max Packet Size (offset 7)
     movzx eax, byte [rbx + 7]
-    LOG_HEX "Max Packet Size : ", rax
+    LOG_HEX "   Max Packet Size : ", rax
 
-    mov dword [rel device_init_state], DEV_STATE_IDLE
+    mov dword [rel device_init_state], DEV_STATE_WAIT_CONF9
+    PRINT_INLINE "[USB Core] Demande de l'en-tête de configuration..."
     call core_usb_get_config_desc_9
     ret
 
@@ -165,7 +172,8 @@ core_usb_handle_transfer_completion:
     movzx eax, word [rbx + 2]
     LOG_HEX "wTotalLength trouvé : ", rax
 
-    mov dword [rel device_init_state], DEV_STATE_IDLE
+    mov dword [rel device_init_state], DEV_STATE_WAIT_CONF_FULL
+    PRINT_INLINE "[USB Core] Demande de la configuration complet..."
     mov r10, rax
     call core_usb_get_config_desc_full
     ret
@@ -173,7 +181,8 @@ core_usb_handle_transfer_completion:
 .handle_conf_full_success:
     PRINT_INLINE "[USB Core] Arbre de configuration COMPLET lu en RAM !"
 
-    mov dword [rel device_init_state], DEV_STATE_IDLE
+    mov dword [rel device_init_state], DEV_STATE_WAIT_SET_CONF
+    PRINT_INLINE "[USB Core] Set Configuration..."
     call core_usb_set_config
     ret
 
@@ -183,6 +192,8 @@ core_usb_handle_transfer_completion:
     ; Analyserl'arbre pour trouver les Endpoints
     call core_usb_parse_config
 
+    mov dword [rel device_init_state], DEV_STATE_WAIT_CONF_EP
+    PRINT_INLINE "[USB Core] Configuration du EP..."
     ; Logique Souris Temporaire
     call xhci_configure_ep1_in
     ret
