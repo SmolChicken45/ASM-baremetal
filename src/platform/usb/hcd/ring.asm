@@ -4,18 +4,25 @@ DEFAULT REL
 %include "platform/xhci.inc"
 %include "platform/memory.inc"
 
-global tr_init
-global tr_enqueue
-global er_init
-global er_dequeue
+; =======================================================================
+; EXPORTATIONS
+; =======================================================================
+global hcd_tr_init
+global hcd_tr_enqueue
+global hcd_er_init
+global hcd_er_dequeue
 
 section .text
 
+; =======================================================================
+; hcd_tr_init
+; Rôle : Initialise un Transfer Ring (TR) ou Command Ring (CR) et place le Link TRB
 ; Paramètres:
 ; RDI = Pointeur vers la strcutre tr_manager_t
 ; RSI = Adresse virtuelle du buffer de l'anneau (align 64)
-; RDX = Capacité totale
-tr_init:
+; RDX = Capacité totale (nmbre de TRBs, incluant le link TRB)
+; =======================================================================
+hcd_tr_init:
     ; Sauvegarder les bases
     mov [rdi + tr_manager_t.base_virt], rsi
     mov [rdi + tr_manager_t.enqueue], rsi
@@ -42,12 +49,16 @@ tr_init:
     ret
 
 
+; =======================================================================
+; hcd_tr_enqueue
+; Rôle : Ajoute un TRB sur le Transfer Ring
 ; Paramètres :
 ; RDI = Pointeur vers la structure tr_manager_t
 ; RAX = Parameter (QWORD 0)
 ; R8D = Status (DWORD 2)
 ; R9D = Control (DWORD 3) - Sauf le BIT CYCLE
-tr_enqueue:
+; =======================================================================
+hcd_tr_enqueue:
     ; Récuperer le pointeur d'insertion actuel
     mov rcx, [rdi + tr_manager_t.enqueue]
 
@@ -98,11 +109,15 @@ tr_enqueue:
     mov [rdi + tr_manager_t.enqueue], rcx
     ret
 
+; =======================================================================
+; hcd_er_init
+; Rôle : Initialise un Event Ring
 ; Paramètres :
 ; RDI = Pointeur vers er_manager_t
 ; RSI = Adresse virtuelle du buffer de l'anneau (align 64)
 ; RDX = Capacité totale (ex:256)
-er_init:
+; =======================================================================
+hcd_er_init:
     mov [rdi + er_manager_t.base_virt], rsi
     mov [rdi + er_manager_t.dequeue_virt], rsi
     mov [rdi + er_manager_t.capacity], edx
@@ -116,11 +131,16 @@ er_init:
     mov [rdi + er_manager_t.dequeue_phys], rax
     ret
 
-; Paramètres : RDI = Pointeur vers er_manager_t
+; =======================================================================
+; hcd_er_dequeue
+; Rôle : Tente de retirer un événement de l'Event Ring
+; Paramètres :
+;   RDI = Pointeur vers er_manager_t
 ; Retour :
 ;   RAX = Adresse virtuelle du TRB de l'événement, ou 0 si vide
 ;   RDX = Nouvelle adresse physique (à écrire dans ERDP par l'appelant
-er_dequeue:
+; =======================================================================
+hcd_er_dequeue:
     ; Lire le TRB au pointeur actuel
     mov rcx, [rdi + er_manager_t.dequeue_virt]
 

@@ -3,7 +3,7 @@ DEFAULT REL
 
 extern keyboard_handler
 extern timer_handler
-extern xhci_event_handler
+extern hcd_event_handler
 
 global init_idt
 
@@ -122,7 +122,7 @@ init_idt:
     call set_idt_entry
 
     mov rdi, 0x22
-    lea rsi, [rel xhci_event_handler]
+    lea rsi, [rel hcd_event_handler]
     call set_idt_entry
     ; --------------------------------------
     ; ÉTAPE 3 : CHARGEMENT DANS LE CPU

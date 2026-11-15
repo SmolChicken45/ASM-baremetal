@@ -5,56 +5,69 @@ DEFAULT REL
 %include "platform/memory.inc"
 %include "platform/xhci.inc"
 
-global xhci_setup_device_context
-global xhci_output_context
-global xhci_input_context
-global xhci_dcbaa
-global ep0_mgr
+; ===========================================================================
+; EXPORTATIONS
+; ===========================================================================
+global core_usb_setup_device_context
+global core_usb_output_context
+global core_usb_input_context
+global core_usb_dcbaa
+global core_usb_ep0_mgr
 
-extern current_port_id
-extern current_port_speed
-extern tr_init
+; ===========================================================================
+; IMPORTATIONS
+; ===========================================================================
+extern hcd_tr_init                      ; Depuis hcd/ring.asm
+
+extern current_port_id                  ; core/usb_hub.asm
+extern current_port_speed               ; core/usb_hub.asm
+
 
 section .bss
 align 4096
-xhci_input_context: resb 4096   ; 1 page pour l'input context
-xhci_output_context: resb 4096
-xhci_ep0_ring:      resb 4096   ; 1 page pour le Transfer Ring de l'EP0
+core_usb_input_context:     resb 4096   ; 1 page pour l'input context
+core_usb_output_context:    resb 4096
+core_usb_ep0_ring:          resb 4096   ; 1 page pour le Transfer Ring de l'EP0
+
 align 64
-xhci_dcbaa: resq 256
+core_usb_dcbaa:             resq 256    ; Tableau DCBAA
+
 align 8
-ep0_mgr: resb tr_manager_t_size
+core_usb_ep0_mgr:           resb tr_manager_t_size
 
 section .text
 
-; xhci_setup_device_context : Remplit es structures de données (contextes)
-; Nécessaires pour la commande Address Device
-
-xhci_setup_device_context:
+; ===========================================================================
+; core_usb_setup_device_context : Prépare l'Input Context en RAM avec les paramètres du port
+; et configure le Transfer Ring de l'Endpoint 0
+; ===========================================================================
+core_usb_setup_device_context:
     push rbx
     push rcx
     push rdx
     push r8
 
     ; Initialiser le gestionnaire du TR EP0
-    lea rdi, [rel ep0_mgr]
-    lea rsi, [rel xhci_ep0_ring]
+    lea rdi, [rel core_usb_ep0_mgr]
+    lea rsi, [rel core_usb_ep0_ring]
     mov rdx, 256            ; Capacité (4096 Bytes / 16 = 256 TRBs)
-    call tr_init
+    call hcd_tr_init
 
     ; Nettoyer la page de L'Input Context
-    lea rdi, [rel xhci_input_context]
+    lea rdi, [rel core_usb_input_context]
     xor eax, eax
     mov rcx, 1024
     rep stosd
 
     ; RDI pointe à la fin de la page
-    lea rbx, [rel xhci_input_context]
+    lea rbx, [rel core_usb_input_context]
 
     ; Add Context Flags (Offset 0x04)
     mov dword [rbx + CTX_ADD_FLAGS], (ICS_ADD_SLOT | ICS_ADD_EP0)
 
-    ; Offset 0x20 = Slot Context
+    ; ===========================================================================
+    ; CONFIGURATION DU SLOT CONTEXT (Offset 0x20)
+    ; ===========================================================================
     ; Décrit le périphérique de façon globale
 
     ; dword 0 (Offset 0x20) : Route String (0), Speed, Multi-TT (0), Context Entries
@@ -68,7 +81,9 @@ xhci_setup_device_context:
     shl eax, SLOT_PORT_SHIFT             ; Le numéro du port racine est aux bits 16-23
     mov dword [rbx + CTX_SLOT_DWORD1], eax
 
-    ; Offset 0x40 = Endpoint 0 Context (EP0)
+    ; ===========================================================================
+    ; CONFIGURATION DU EP0 CONTEXT (Offset 0x40)
+    ; ===========================================================================
 
     ; Dword 1 (Offset 0x44) : Error Count (3), EP Type (4), Max Packet Size
     ; le type pour EP0 est toujours 4 (Control Bidirectionnel)
@@ -103,14 +118,14 @@ xhci_setup_device_context:
 
     ; Dword 2 et 3 (Offset 0x48 et 0x4C) : TR Dequeue Pointer (Adresse Physique du Transfer Ring)
     ; On doit donner xHCI l'adresse Physique du Transfer RIng qu'on a alloué
-    mov rax, [rel ep0_mgr + tr_manager_t.base_phys]
-
+    mov rax, [rel core_usb_ep0_mgr + tr_manager_t.base_phys]
     or rax, 1       ; Activer le bit 0 (DCX - Dequeue Cycle State)
+
     mov dword [rbx + CTX_EP0_TRDP_LO], eax
     shr rax, 32
     mov dword [rbx + CTX_EP0_TRDP_HI], eax
 
-    PRINT_INLINE "[xHCI] Context Input, Slot et EP0 configurés en RAM."
+    PRINT_INLINE "[USB Core] Context Input, Slot et EP0 configurés en RAM."
 
     pop r8
     pop rdx

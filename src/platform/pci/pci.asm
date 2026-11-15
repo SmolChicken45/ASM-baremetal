@@ -7,7 +7,8 @@ global get_xhci_device
 global pci_enable_msi
 global pci_read_dword
 global pci_write_dword
-
+global hcd_enable_msi
+global hcd_pci_init
 
 section .rodata
     msg_scan_hda_start:     db "[PCI] Scan du bus PCI pour peripherique HDA...", 13, 10
@@ -419,3 +420,28 @@ pci_enable_msi:
     pop r12
     pop rbx
     ret
+
+
+hcd_enable_msi:
+    mov cl, byte [xhci_bus]
+    mov dl, byte [xhci_dev]
+    mov r8b, byte [xhci_func]
+    mov r10d, 0x22                  ; Vecteur IDT
+    call pci_enable_msi
+    ret
+
+hcd_pci_init:
+    ; 1. Forcer l'activation du Bus Master PCIe
+    mov cl, byte [xhci_bus]
+    mov dl, byte [xhci_dev]
+    mov r8b, byte [xhci_func]
+    mov r9b, 0x04
+    call pci_read_dword
+
+    or eax, (1 << 2)
+
+    mov cl, byte [xhci_bus]
+    mov dl, byte [xhci_dev]
+    mov r8b, byte [xhci_func]
+    mov r9b, 0x04
+    call pci_write_dword

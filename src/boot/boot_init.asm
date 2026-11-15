@@ -12,10 +12,12 @@ extern memory_init
 extern detect_cdrom
 extern init_idt
 extern get_xhci_device
-extern init_xhci
-extern pci_xhci_enable_msi
-extern start_xhci_run
+extern hcd_init
+extern hcd_enable_msi
+extern hcd_start
 extern get_kernel_address_response
+extern hcd_pci_init
+extern xhci_bar0
 
 extern serial_write_byte
 
@@ -63,10 +65,13 @@ boot_init:
 
     ; USB
     call get_xhci_device
-    call init_xhci
+    call hcd_pci_init
 
-    call pci_xhci_enable_msi
-    call start_xhci_run
+    mov rdi, qword [rel xhci_bar0]
+    call hcd_init
+
+    call hcd_enable_msi
+    call hcd_start
 
     ; Signature de SmolChicken45 pour montrer que le init a fonctionné
     mov al, 0x53

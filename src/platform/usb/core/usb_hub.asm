@@ -4,28 +4,40 @@ DEFAULT REL
 %include "platform/serial.inc"
 %include "platform/xhci.inc"
 
-global xhci_handle_port_change
+; ================================================================
+; EXPORTATIONS
+; ================================================================
+global core_usb_handle_port_change
+
+; Variables globales partagé avec core/usb_device.asm
 global current_port_id
 global current_port_speed
 
-extern xhci_op_base
-extern xhci_send_enable_slot_cmd
+; ================================================================
+; EXPORTATIONS
+; ================================================================
+extern op_base                          ; hcd/init.asm
+extern hcd_cmd_enable_slot              ; hcd/cmd.asm
 
 section .bss
-current_port_id: resd 1
-current_port_speed: resd 1
+current_port_id:        resd 1
+current_port_speed:     resd 1
 
 section .text
 
-; xchi_handle_port_change : Analyse l'état d'un port USB
-; Entrée : RAX = Port ID
-
-xhci_handle_port_change:
+; ================================================================
+; core_usb_handle_port_change : Analyse l'état d'un port USB
+; Entrée : RDI = Port ID
+; ================================================================
+core_usb_handle_port_change:
     push rbx
     push rcx
     push rdx
 
-    mov rbx, qword [rel xhci_op_base]
+    mov rax, rdi
+
+    ; Calculer l'adresse du registre PORTSC correspondant
+    mov rbx, qword [rel op_base]
     add rbx, XHCI_PORTSC_BASE
 
     dec rax         ; Port 1 = Index 0
@@ -42,7 +54,7 @@ xhci_handle_port_change:
     jz .device_unplugged
 
 .device_plugged:
-    PRINT_INLINE "[xHCI] PORT : Périphérique CONNECTÉ !"
+    PRINT_INLINE "[USB Hub] PORT : Périphérique CONNECTÉ !"
 
     ; Reset électrique au port (PR)
     mov ecx, dword [rbx]
@@ -57,7 +69,7 @@ xhci_handle_port_change:
     test ecx, XHCI_PORTSC_PRC
     jz .wait_reset
 
-    PRINT_INLINE "[xHCI] PORT : Reset termine, port actif et prêt !"
+    PRINT_INLINE "[USB Hub] PORT : Reset termine, port actif et prêt !"
 
     ; Acquitter le Port Reset Change (PRC)
     mov ecx, dword [rbx]
@@ -76,15 +88,15 @@ xhci_handle_port_change:
     and eax, XHCI_PORTSC_SPEED_MASK   ; Masquer pour garder 4 bits
 
     mov dword [rel current_port_speed], eax
-    LOG_HEX "[xHCI] Vitesse du port (1=FS, 2=LS, 3=HS, 4=SS) : ", rax
+    LOG_HEX "[USB Hub] Vitesse du port (1=FS, 2=LS, 3=HS, 4=SS) : ", rax
 
     ; Demander un Slot ID pour le nouveau périphérique
-    call xhci_send_enable_slot_cmd
+    call hcd_cmd_enable_slot
 
     jmp .done
 
 .device_unplugged:
-    PRINT_INLINE "[xHCI] PORT : Périphérique DÉCONNECTÉ !"
+    PRINT_INLINE "[USB Hub] PORT : Périphérique DÉCONNECTÉ !"
 
     ; TODO Détruire les structures mémoire de la clé USB
     ; Acquitter seulement CSC
