@@ -9,9 +9,6 @@ DEFAULT REL
 ; ================================================================
 global core_usb_handle_port_change
 
-; Variables globales partagé avec core/usb_device.asm
-global current_port_id
-global current_port_speed
 
 ; ================================================================
 ; EXPORTATIONS
@@ -20,10 +17,10 @@ extern op_base                          ; hcd/init.asm
 extern hcd_cmd_enable_slot              ; hcd/cmd.asm
 extern hcd_cmd_disable_slot             ; hcd/cmd.asm
 extern device_init_state                ; core/event.asm
-
-section .bss
-current_port_id:        resd 1
-current_port_speed:     resd 1
+extern core_usb_alloc_device            ; core/usb_pool.asm
+extern core_usb_alloc_endpoint          ; core/usb_pool.asm
+extern core_usb_free_device             ; core/usb_pool.asm
+extern core_usb_get_device_by_port      ; core/usb_pool.asm
 
 section .text
 
@@ -33,8 +30,7 @@ section .text
 ; ================================================================
 core_usb_handle_port_change:
     push rbx
-    push rcx
-    push rdx
+    push r12
 
     mov rax, rdi
 
@@ -58,6 +54,12 @@ core_usb_handle_port_change:
 .device_plugged:
     PRINT_INLINE "[USB Hub] PORT : Périphérique CONNECTÉ !"
 
+    call core_usb_alloc_device
+    test rax, rax
+    jz .erreur_memoire
+
+    mov r12, rax    ; Pointeur vers usb_device_t
+
     ; Reset électrique au port (PR)
     mov ecx, dword [rbx]
     and ecx, XHCI_PORTSC_MASK
@@ -79,22 +81,28 @@ core_usb_handle_port_change:
     or ecx, (XHCI_PORTSC_CSC | XHCI_PORTSC_PLC | XHCI_PORTSC_PRC)
     mov dword [rbx], ecx
 
-    ; Sauvegarder l'ID du port (remettre en 1-based)
-    shr rax, 4
-    inc rax
-    mov dword [rel current_port_id], eax
+    mov eax, edi
+    mov byte [r12 + usb_device_t.port_id], al
 
     ; Lecture de la vitesse du périphérique
     mov eax, dword [rbx]
     shr eax, XHCI_PORTSC_SPEED_SHIFT     ; Amener le bit 10 à la pos 0
     and eax, XHCI_PORTSC_SPEED_MASK   ; Masquer pour garder 4 bits
 
-    mov dword [rel current_port_speed], eax
+    mov byte [r12 + usb_device_t.speed], al
     LOG_HEX "[USB Hub] Vitesse du port (1=FS, 2=LS, 3=HS, 4=SS) : ", rax
 
+    ; Allouer le EP0
+    mov rdi, r12
+    mov rsi, 1
+    call core_usb_alloc_endpoint
+    test rax, rax
+    jz .erreur_memoire
+
     ; Demander un Slot ID pour le nouveau périphérique
-    mov dword [rel device_init_state], DEV_STATE_WAIT_SLOT
+    mov dword [r12 + usb_device_t.state], DEV_STATE_WAIT_SLOT
     PRINT_INLINE "[USB Hub] Demande de Slot pour le device..."
+    mov rdi, r12
     call hcd_cmd_enable_slot
 
     jmp .done
@@ -102,8 +110,21 @@ core_usb_handle_port_change:
 .device_unplugged:
     PRINT_INLINE "[USB Hub] PORT : Périphérique DÉCONNECTÉ !"
 
+    call core_usb_get_device_by_port
+    test rax, rax
+    jz .ack_disconnect
+
+    mov r12, rax
+
+    movzx edi, byte [r12 + usb_device_t.slot_id]
     PRINT_INLINE "[USB Hub] Demande de désactiver Slot du device..."
     call hcd_cmd_disable_slot
+
+    ; Libérer la mémoire
+    mov rdi, r12
+    call core_usb_free_device
+    PRINT_INLINE "[USB Hub] Appareil supprimé du système de mémoire."
+.ack_disconnect:
     ; Acquitter seulement CSC
     mov ecx, dword [rbx]
     and ecx, XHCI_PORTSC_MASK
@@ -117,10 +138,12 @@ core_usb_handle_port_change:
     mov ecx, dword [rbx]
     and ecx, XHCI_PORTSC_CLEAR_ALL
     mov dword [rbx], ecx
+    jmp .done
+
+.erreur_memoire:
+    PRINT_INLINE "[USB Hub] ERREUR FATALE : Allocation mémoire USB impossible !"
 
 .done:
-    pop rdx
-    pop rcx
+    pop r12
     pop rbx
-
     ret

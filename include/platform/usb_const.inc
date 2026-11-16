@@ -40,6 +40,29 @@
 %define USB_DESC_HID                0x21
 %define USB_DESC_HID_REPORT         0x22
 
+; Classes de Périphériques USB (bInterfaceClass)
+%define USB_CLASS_AUDIO             0x01
+%define USB_CLASS_COMM              0x02
+%define USB_CLASS_HID               0x03
+%define USB_CLASS_PHYSICAL          0x05
+%define USB_CLASS_IMAGE             0x06
+%define USB_CLASS_PRINTER           0x07
+%define USB_CLASS_MASS_STORAGE      0x08
+%define USB_CLASS_HUB               0x09
+%define USB_CLASS_CDC_DATA          0x0A
+%define USB_CLASS_SMART_CARD        0x0B
+%define USB_CLASS_VIDEO             0x0E
+%define USB_CLASS_WIRELESS          0xE0
+%define USB_CLASS_VENDOR            0xFF
+
+; Sous-classes et Protocoles pour la classe HID (0x03)
+%define HID_SUBCLASS_NONE           0x00
+%define HID_SUBCLASS_BOOT           0x01
+
+%define HID_PROTOCOL_NON            0x00
+%define HID_PROTOCOL_KEYBOARD       0x01
+%define HID_PROTOCOL_MOUSE          0x02
+
 ; Configuration Values
 %define USB_CFG_VAL_DEFAULT         1
 
@@ -90,4 +113,17 @@
 ; Tailles maximales par défaut des paquest pour Endpoint 0
 %define USB_EP0_MAX_FS_LS           8   ; Full/Low Speed
 %define USB_EP0_MAX_HS              64  ; High Speed
-%define USB_EP0_MAX_SS              512 : SuperSpeed
+%define USB_EP0_MAX_SS              512 ; SuperSpeed
+
+
+; ============================================================================
+; Descripteur d'Interface et Classes
+; ============================================================================
+
+; Offsets du Descripteur d'Interface
+%define USB_DESC_INTF_NUM_OFS       2
+%define USB_DESC_INTF_ALT_OFS       3
+%define USB_DESC_INTF_ENDPOINTS_OFS 4
+%define USB_DESC_INTF_CLASS_OFS     5
+%define USB_DESC_INTF_SUBCLASS_OFS  6
+%define USB_DESC_INTF_PROTOCOL_OFS  7

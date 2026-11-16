@@ -39,12 +39,12 @@ hcd_tr_init:
     ; rbx = Adresse du dernier TRB = base_virt + ((capacity - 1) * 16)
     dec rdx
     shl rdx, 4
-    lea rbx, [rsi + rdx]
+    lea r8, [rsi + rdx]
 
     ; Construire le Link TRB (Type 6) pointant vers le début de l'aneau
-    mov qword [rbx + TRB_DWORD0], rax    ; Paramètre = base physique de l'anneau
-    mov dword [rbx + TRB_DWORD2], 0  ; Status = 0
-    mov dword [rbx + TRB_DWORD3], (TRB_TYPE_LINK << TRB_TYPE_SHIFT) | TRB_TC_BIT
+    mov qword [r8 + TRB_DWORD0], rax    ; Paramètre = base physique de l'anneau
+    mov dword [r8 + TRB_DWORD2], 0  ; Status = 0
+    mov dword [r8 + TRB_DWORD3], (TRB_TYPE_LINK << TRB_TYPE_SHIFT) | TRB_TC_BIT
 
     ret
 

@@ -30,4 +30,12 @@
 %define EP_TYPE_SHIFT       3
 
 %define EP_ERR_COUNT_3      3       ; xHCI recommande 3 essais
-%define EP_TYPE_CONTROL     4       ; Control Bidirectionnel (EP0)
+
+; Types d'Endpoints (xHCI Endpoint Context DWORD 1 Bits 3-5)
+%define EP_TYPE_ISOCH_OUT       1
+%define EP_TYPE_BULK_OUT        2
+%define EP_TYPE_INT_OUT         3
+%define EP_TYPE_CONTROL         4
+%define EP_TYPE_ISOCH_IN        5
+%define EP_TYPE_BULK_IN         6
+%define EP_TYPE_INT_IN          7

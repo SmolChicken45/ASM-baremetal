@@ -9,31 +9,12 @@ DEFAULT REL
 ; EXPORTATIONS
 ; ===========================================================================
 global core_usb_setup_device_context
-global core_usb_output_context
-global core_usb_input_context
 global core_usb_dcbaa
-global core_usb_ep0_mgr
-
-; ===========================================================================
-; IMPORTATIONS
-; ===========================================================================
-extern hcd_tr_init                      ; Depuis hcd/ring.asm
-
-extern current_port_id                  ; core/usb_hub.asm
-extern current_port_speed               ; core/usb_hub.asm
 
 
 section .bss
-align 4096
-core_usb_input_context:     resb 4096   ; 1 page pour l'input context
-core_usb_output_context:    resb 4096
-core_usb_ep0_ring:          resb 4096   ; 1 page pour le Transfer Ring de l'EP0
-
 align 64
 core_usb_dcbaa:             resq 256    ; Tableau DCBAA
-
-align 8
-core_usb_ep0_mgr:           resb tr_manager_t_size
 
 section .text
 
@@ -42,28 +23,23 @@ section .text
 ; et configure le Transfer Ring de l'Endpoint 0
 ; ===========================================================================
 core_usb_setup_device_context:
-    push rbx
-    push rcx
-    push rdx
-    push r8
-
-    ; Initialiser le gestionnaire du TR EP0
-    lea rdi, [rel core_usb_ep0_mgr]
-    lea rsi, [rel core_usb_ep0_ring]
-    mov rdx, 256            ; Capacité (4096 Bytes / 16 = 256 TRBs)
-    call hcd_tr_init
+    mov r11, rdi
 
     ; Nettoyer la page de L'Input Context
-    lea rdi, [rel core_usb_input_context]
+    mov rdi, [r11 + usb_device_t.input_ctx_virt]
+    mov r9, rdi
     xor eax, eax
     mov rcx, 1024
     rep stosd
+    ; Inscription au DCBAA
+    movzx ecx, byte [r11 + usb_device_t.slot_id]
+    mov rax, qword [r11 + usb_device_t.output_ctx_phys]
 
-    ; RDI pointe à la fin de la page
-    lea rbx, [rel core_usb_input_context]
+    lea r8, qword [rel core_usb_dcbaa]
+    mov qword [r8 + rcx * 8], rax
 
     ; Add Context Flags (Offset 0x04)
-    mov dword [rbx + CTX_ADD_FLAGS], (ICS_ADD_SLOT | ICS_ADD_EP0)
+    mov dword [r9 + CTX_ADD_FLAGS], (ICS_ADD_SLOT | ICS_ADD_EP0)
 
     ; ===========================================================================
     ; CONFIGURATION DU SLOT CONTEXT (Offset 0x20)
@@ -71,15 +47,15 @@ core_usb_setup_device_context:
     ; Décrit le périphérique de façon globale
 
     ; dword 0 (Offset 0x20) : Route String (0), Speed, Multi-TT (0), Context Entries
-    mov eax, dword [rel current_port_speed]
+    movzx eax, byte [r11 + usb_device_t.speed]
     shl eax, SLOT_SPEED_SHIFT         ; La vitesse est aux bits 20-23
     or eax, (1 << SLOT_ENTRIES_SHIFT)   ; Context Entries (BIts 27-31) = 1 (seul EP0 est actif)
-    mov dword [rbx + CTX_SLOT], eax
+    mov dword [r9 + CTX_SLOT], eax
 
     ; dword 1 (Offset 0x24) : Max Exit Latency (0), Root Hub Port Number
-    mov eax, dword [rel current_port_id]
+    movzx eax, byte [r11 + usb_device_t.port_id]
     shl eax, SLOT_PORT_SHIFT             ; Le numéro du port racine est aux bits 16-23
-    mov dword [rbx + CTX_SLOT_DWORD1], eax
+    mov dword [r9 + CTX_SLOT_DWORD1], eax
 
     ; ===========================================================================
     ; CONFIGURATION DU EP0 CONTEXT (Offset 0x40)
@@ -91,7 +67,7 @@ core_usb_setup_device_context:
     ; Souvent les vieux périphériques FS disent 8 par défaut
     ; SI HS c'est 64
 
-    mov ecx, dword [rel current_port_speed]
+    mov ecx, dword [r11 + usb_device_t.speed]
     cmp ecx, XHCI_SPEED_HIGH
     je .set_hs_packet
 
@@ -113,22 +89,18 @@ core_usb_setup_device_context:
     ; Construire le DWORD : Error Count (bit 1-2) = 3, EP Type (bit 3-5) = 4, MAx Packet Size (16-31)
     mov eax, (EP_ERR_COUNT_3 << EP_ERR_COUNT_SHIFT) | (EP_TYPE_CONTROL << EP_TYPE_SHIFT)
     shl edx, 16
-    add eax, edx
-    mov dword [rbx + CTX_EP0_DWORD1], eax
+    or eax, edx
+    mov dword [r9 + CTX_EP0_DWORD1], eax
 
     ; Dword 2 et 3 (Offset 0x48 et 0x4C) : TR Dequeue Pointer (Adresse Physique du Transfer Ring)
     ; On doit donner xHCI l'adresse Physique du Transfer RIng qu'on a alloué
-    mov rax, [rel core_usb_ep0_mgr + tr_manager_t.base_phys]
+    mov r8, qword [r11 + usb_device_t.endpoints + 1 * 8]
+    mov rax, qword [r8 + usb_endpoint_t.tr_mgr + tr_manager_t.base_phys]
     or rax, CTX_EP_TRDP_DCS_BIT      ; Activer le bit 0 (DCX - Dequeue Cycle State)
 
-    mov dword [rbx + CTX_EP0_TRDP_LO], eax
+    mov dword [r9 + CTX_EP0_TRDP_LO], eax
     shr rax, 32
-    mov dword [rbx + CTX_EP0_TRDP_HI], eax
+    mov dword [r9 + CTX_EP0_TRDP_HI], eax
 
     PRINT_INLINE "[USB Core] Context Input, Slot et EP0 configurés en RAM."
-
-    pop r8
-    pop rdx
-    pop rcx
-    pop rbx
     ret

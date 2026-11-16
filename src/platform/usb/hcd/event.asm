@@ -133,6 +133,8 @@ hcd_event_handler:
 
 .cmd_failed:
     PRINT_INLINE "[xHCI HCD] Erreur : Commande terminée avec une faute !"
+    mov eax, dword [rbx + TRB_DWORD2]
+    LOG_HEX "[xHCI] Event TRB Dword 2 (Status/Compl): ", rax
     jmp .process_next_event
 
 .is_transfer_event:
@@ -155,6 +157,8 @@ hcd_event_handler:
     ; RSI = Pointeur physique du TRB qui a déclenché l'event
     mov rdi, rcx
     mov rsi, qword [rbx + TRB_DWORD0]
+    mov edx, dword [rbx + 0x0C]
+    shr edx, 24         ; Slot ID
     call core_usb_handle_transfer_completion
 
     jmp .process_next_event
